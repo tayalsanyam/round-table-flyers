@@ -6,7 +6,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals,matchesLogo,logoScope,groupedLogos,type Logo } from '@/lib/catalog';
 import { logoFields,detectedImage,MAX_LOGO_BYTES } from '@/lib/validation';
-import { fileFromCanvas, removeLightBackground } from '@/lib/background';
+import { fileFromCanvas, removeLogoBackground as stripLogoBackground } from '@/lib/background';
 import { loadImage } from '@/lib/composite';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import AppHeader from './app-header';
@@ -88,8 +88,9 @@ export default function LogoCollection(){
       logoHistory.current.push(newFile);
       setCanUndoLogo(true);
       const image=await loadImage(logoPreview);
-      const canvas=removeLightBackground(image);
+      const canvas=stripLogoBackground(image);
       setLogoFile(await fileFromCanvas(canvas,newFile.name));
+      toast.success('Logo background removed. Use Undo if you need the original back.');
     }catch(e){
       logoHistory.current.pop();
       setCanUndoLogo(logoHistory.current.length>0);
@@ -204,13 +205,13 @@ export default function LogoCollection(){
               {logoPreview&&<div className="upload-preview"><img src={logoPreview} alt="Logo preview"/></div>}
               {newFile&&<div className="image-tools">
                 <button type="button" className="secondary" disabled={processingLogo||saving} onClick={()=>void removeLogoBackground()}>
-                  <Eraser size={16}/>{processingLogo?'Removing…':'Remove light background'}
+                  <Eraser size={16}/>{processingLogo?'Removing…':'Remove background'}
                 </button>
                 <button type="button" className="secondary" disabled={!canUndoLogo||processingLogo||saving} onClick={undoLogoEdit}>
                   <Undo2 size={16}/> Undo
                 </button>
               </div>}
-              <p className="hint">PNG, JPG or WebP · up to 10 MB. Transparent PNGs work best on coloured strips. Use Remove background for light boxes around a logo.</p>
+              <p className="hint">PNG, JPG or WebP · up to 10 MB. Use Remove background for logos on solid black or white boxes — saves as a transparent PNG. Undo restores the original file.</p>
               <button className="primary" disabled={saving||!newFile}>{saving?'Saving…':'Add to shared collection'}</button>
             </form>
           : <section className="panel access-panel">

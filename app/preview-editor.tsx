@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import type { Design, Layout, LogoLayout, TagLayer, TextLayer } from '@/lib/composite';
+import type { Design, Layout } from '@/lib/composite';
 
 type DragTarget =
   | { kind: 'text'; id: string }
@@ -17,8 +17,8 @@ type Props = {
   onDraggingChange?: (dragging: boolean) => void;
 };
 
-const SNAP_POINTS = [25, 50, 75];
-const SNAP_THRESHOLD = 1.8;
+const GRID_SNAPS = [20, 33.333, 50, 66.666, 80];
+const SNAP_THRESHOLD = 3.2;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -32,31 +32,95 @@ function isActive(target: DragTarget, handle: DragTarget) {
   return false;
 }
 
-function snapAxis(value: number) {
-  for (const point of SNAP_POINTS) {
-    if (Math.abs(value - point) < SNAP_THRESHOLD) return point;
+function nearestSnap(value: number, candidates: number[]) {
+  let best = value;
+  let matched: number | null = null;
+  for (const point of candidates) {
+    const distance = Math.abs(value - point);
+    if (distance <= SNAP_THRESHOLD) {
+      best = point;
+      matched = point;
+      break;
+    }
   }
-  return value;
+  return { value: best, guide: matched };
+}
+
+function snapTargets(target: DragTarget, design: Design, selectedLogoIds: string[]) {
+  const x = [...GRID_SNAPS, 50];
+  const y = [...GRID_SNAPS, 50];
+
+  const logoPeers = design.logoLayouts.filter(item => selectedLogoIds.includes(item.id));
+  const otherLogos = target.kind === 'logo'
+    ? logoPeers.filter(item => item.id !== target.id)
+    : logoPeers;
+
+  for (const item of otherLogos) {
+    x.push(item.x);
+    y.push(item.y);
+  }
+
+  const sorted = [...otherLogos].sort((a, b) => a.x - b.x);
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      x.push((sorted[i].x + sorted[j].x) / 2);
+    }
+  }
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gap = sorted[i + 1].x - sorted[i].x;
+    x.push(sorted[i].x - gap, sorted[i + 1].x + gap);
+    if (i + 2 < sorted.length) {
+      x.push(sorted[i].x + gap, sorted[i + 1].x - gap);
+    }
+  }
+
+  for (const tag of design.tags) {
+    x.push(tag.x);
+    y.push(tag.y);
+  }
+  for (const layer of design.textLayers) {
+    if (!layer.text.trim()) continue;
+    x.push(layer.x);
+    y.push(layer.y);
+  }
+
+  return { x, y };
+}
+
+function snapPosition(
+  rawX: number,
+  rawY: number,
+  target: DragTarget,
+  design: Design,
+  selectedLogoIds: string[],
+) {
+  const candidates = snapTargets(target, design, selectedLogoIds);
+  const snappedX = nearestSnap(rawX, candidates.x);
+  const snappedY = nearestSnap(rawY, candidates.y);
+  return {
+    x: snappedX.value,
+    y: snappedY.value,
+    guideX: snappedX.guide,
+    guideY: snappedY.guide,
+  };
 }
 
 function applyPatch(design: Design, target: DragTarget, x: number, y: number): Design {
-  const snappedX = snapAxis(x);
-  const snappedY = snapAxis(y);
   if (target.kind === 'text') {
     return {
       ...design,
-      textLayers: design.textLayers.map(layer => layer.id === target.id ? { ...layer, x: snappedX, y: snappedY } : layer),
+      textLayers: design.textLayers.map(layer => layer.id === target.id ? { ...layer, x, y } : layer),
     };
   }
   if (target.kind === 'tag') {
     return {
       ...design,
-      tags: design.tags.map(tag => tag.text === target.text ? { ...tag, x: snappedX, y: snappedY } : tag),
+      tags: design.tags.map(tag => tag.text === target.text ? { ...tag, x, y } : tag),
     };
   }
   return {
     ...design,
-    logoLayouts: design.logoLayouts.map(item => item.id === target.id ? { ...item, x: snappedX, y: snappedY } : item),
+    logoLayouts: design.logoLayouts.map(item => item.id === target.id ? { ...item, x, y } : item),
   };
 }
 
@@ -67,28 +131,26 @@ export default function PreviewEditor({ canvas, layout, design, selectedLogoIds,
   const canvasRef = useRef(canvas);
   const layoutRef = useRef(layout);
   const designRef = useRef(design);
+  const selectedRef = useRef(selectedLogoIds);
   canvasRef.current = canvas;
   layoutRef.current = layout;
   designRef.current = design;
+  selectedRef.current = selectedLogoIds;
 
   const active = draft ?? design;
 
-  function pointToFlyer(clientX: number, clientY: number) {
+  function pointToFlyer(clientX: number, clientY: number, target: DragTarget, currentDesign: Design) {
     const currentCanvas = canvasRef.current;
     const currentLayout = layoutRef.current;
-    if (!currentCanvas || !currentLayout) return { flyerX: 50, flyerY: 50 };
+    if (!currentCanvas || !currentLayout) return { x: 50, y: 50 };
     const rect = currentCanvas.getBoundingClientRect();
-    const x = (clientX - rect.left) * (currentLayout.width / rect.width);
-    const y = (clientY - rect.top) * (currentLayout.outputHeight / rect.height);
-    const flyerX = clamp((x / currentLayout.width) * 100, 2, 98);
-    const flyerY = clamp(((y - currentLayout.flyerY) / currentLayout.height) * 100, 2, 98);
-    const snappedX = snapAxis(flyerX);
-    const snappedY = snapAxis(flyerY);
-    setGuides({
-      x: snappedX !== flyerX ? snappedX : null,
-      y: snappedY !== flyerY ? snappedY : null,
-    });
-    return { flyerX: snappedX, flyerY: snappedY };
+    const flyerTopPx = rect.top + rect.height * (currentLayout.flyerY / currentLayout.outputHeight);
+    const flyerHeightPx = rect.height * (currentLayout.height / currentLayout.outputHeight);
+    const rawX = clamp(((clientX - rect.left) / rect.width) * 100, 2, 98);
+    const rawY = clamp(((clientY - flyerTopPx) / flyerHeightPx) * 100, 2, 98);
+    const snapped = snapPosition(rawX, rawY, target, currentDesign, selectedRef.current);
+    setGuides({ x: snapped.guideX, y: snapped.guideY });
+    return { x: snapped.x, y: snapped.y };
   }
 
   useEffect(() => {
@@ -96,8 +158,12 @@ export default function PreviewEditor({ canvas, layout, design, selectedLogoIds,
     onDraggingChange?.(true);
 
     function onMove(event: PointerEvent) {
-      const { flyerX, flyerY } = pointToFlyer(event.clientX, event.clientY);
-      setDraft(current => applyPatch(current ?? designRef.current, drag!, flyerX, flyerY));
+      const currentDesign = designRef.current;
+      setDraft(current => {
+        const base = current ?? currentDesign;
+        const { x, y } = pointToFlyer(event.clientX, event.clientY, drag!, base);
+        return applyPatch(base, drag!, x, y);
+      });
     }
 
     function onUp() {
@@ -121,6 +187,9 @@ export default function PreviewEditor({ canvas, layout, design, selectedLogoIds,
   }, [drag, onDesignChange, onDraggingChange]);
 
   if (!canvas || !layout || !visible) return null;
+
+  const flyerTop = (layout.flyerY / layout.outputHeight) * 100;
+  const flyerHeight = (layout.height / layout.outputHeight) * 100;
 
   const handles = [
     ...active.textLayers.filter(layer => layer.text.trim()).map(layer => ({
@@ -150,34 +219,34 @@ export default function PreviewEditor({ canvas, layout, design, selectedLogoIds,
       : []),
   ];
 
-  const topFor = (y: number) => ((layout.flyerY + layout.height * y / 100) / layout.outputHeight) * 100;
-
   return (
     <div className="preview-overlay" aria-hidden={handles.length === 0}>
-      {guides.x !== null && <div className="align-guide vertical" style={{ left: `${guides.x}%` }} />}
-      {guides.y !== null && <div className="align-guide horizontal" style={{ top: `${topFor(guides.y)}%` }} />}
-      {SNAP_POINTS.map(point => (
-        <div key={`v-${point}`} className="align-guide faint vertical" style={{ left: `${point}%` }} />
-      ))}
-      {SNAP_POINTS.map(point => (
-        <div key={`h-${point}`} className="align-guide faint horizontal" style={{ top: `${topFor(point)}%` }} />
-      ))}
-      {handles.map(handle => (
-        <button
-          key={handle.key}
-          type="button"
-          className={`drag-handle${drag && isActive(drag, handle.target) ? ' active' : ''}`}
-          style={{ left: `${handle.x}%`, top: `${topFor(handle.y)}%` }}
-          title={handle.label}
-          onPointerDown={event => {
-            event.preventDefault();
-            event.stopPropagation();
-            setDraft(designRef.current);
-            setDrag(handle.target);
-          }}
-          aria-label={`Drag ${handle.label}`}
-        />
-      ))}
+      <div className="flyer-bounds" style={{ top: `${flyerTop}%`, height: `${flyerHeight}%` }}>
+        {guides.x !== null && <div className="align-guide vertical" style={{ left: `${guides.x}%` }} />}
+        {guides.y !== null && <div className="align-guide horizontal" style={{ top: `${guides.y}%` }} />}
+        {GRID_SNAPS.map(point => (
+          <div key={`v-${point}`} className="align-guide faint vertical" style={{ left: `${point}%` }} />
+        ))}
+        {GRID_SNAPS.map(point => (
+          <div key={`h-${point}`} className="align-guide faint horizontal" style={{ top: `${point}%` }} />
+        ))}
+        {handles.map(handle => (
+          <button
+            key={handle.key}
+            type="button"
+            className={`drag-handle${drag && isActive(drag, handle.target) ? ' active' : ''}`}
+            style={{ left: `${handle.x}%`, top: `${handle.y}%` }}
+            title={handle.label}
+            onPointerDown={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              setDraft(designRef.current);
+              setDrag(handle.target);
+            }}
+            aria-label={`Drag ${handle.label}`}
+          />
+        ))}
+      </div>
     </div>
   );
 }

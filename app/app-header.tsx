@@ -10,11 +10,22 @@ export default function AppHeader({ signedIn, page }: { signedIn: boolean; page:
 
   return (
     <header className="topbar">
-      <div className="topbar-main">
-        <Link className="brand" href="/" aria-label="Round Table Flyer Finisher home">
-          <Image src="/branding/rtilogowhite.png" alt="Round Table India" width={112} height={112} className="brand-logo" priority />
-          <span className="brand-text">Flyer Finisher<small>Round Table India</small></span>
-        </Link>
+      <Link className="brand" href="/" aria-label="Round Table Flyer Finisher home">
+        <Image src="/branding/rtilogowhite.png" alt="Round Table India" width={112} height={112} className="brand-logo" priority />
+        <span className="brand-copy">
+          <span className="brand-title">Flyer Finisher</span>
+          <span className="brand-sub">Round Table India</span>
+        </span>
+      </Link>
+
+      <div className="topbar-end">
+        <nav className="topbar-nav" aria-label="Main">
+          {page !== 'studio' && <Link className="quiet" href="/"><Layers size={17} /> Studio</Link>}
+          {page !== 'collection' && <Link className="quiet" href="/collection"><FolderOpen size={17} /> Logo collection</Link>}
+          {page !== 'concern' && <Link className="quiet" href="/concern"><MessageCircleWarning size={17} /> Raise a concern</Link>}
+          {page === 'collection' && <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>}
+          {page === 'concern' && <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>}
+        </nav>
 
         <div className="account-actions">
           {signedIn ? (
@@ -27,14 +38,6 @@ export default function AppHeader({ signedIn, page }: { signedIn: boolean; page:
           )}
         </div>
       </div>
-
-      <nav className="topbar-nav" aria-label="Main">
-        {page !== 'studio' && <Link className="quiet" href="/"><Layers size={17} /> Studio</Link>}
-        {page !== 'collection' && <Link className="quiet" href="/collection"><FolderOpen size={17} /> Logo collection</Link>}
-        {page !== 'concern' && <Link className="quiet" href="/concern"><MessageCircleWarning size={17} /> Raise a concern</Link>}
-        {page === 'collection' && <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>}
-        {page === 'concern' && <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>}
-      </nav>
     </header>
   );
 }

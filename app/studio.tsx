@@ -1,13 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Upload, Download, ShieldCheck, Plus, ImageIcon, Check, Copy, Layers, Eraser, Undo2 } from 'lucide-react';
+import { Upload, Download, ShieldCheck, Plus, ImageIcon, Check, Copy, Layers } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals, matchesLogo, logoScope, type Logo } from '@/lib/catalog';
 import { compose, loadImage, defaultLogoLayout, type BandPlacement, type Design, type Layout } from '@/lib/composite';
-import { imageFromCanvas, removeLightBackground } from '@/lib/background';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
@@ -42,8 +41,6 @@ export default function Studio() {
   const [dimensions, setDimensions] = useState('');
   const [filter, setFilter] = useState('All');
   const [showHandles, setShowHandles] = useState(true);
-  const [processingFlyer, setProcessingFlyer] = useState(false);
-  const [canUndoFlyer, setCanUndoFlyer] = useState(false);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [previewCanvas, setPreviewCanvas] = useState<HTMLCanvasElement | null>(null);
   const appliedProfile = useRef(false);
@@ -54,7 +51,6 @@ export default function Studio() {
   const draggingRef = useRef(false);
   const hasRendered = useRef(false);
   const composeFrame = useRef(0);
-  const flyerHistory = useRef<HTMLImageElement[]>([]);
 
   const chosen = logos.filter(l => selected.includes(l.id));
 
@@ -142,39 +138,11 @@ export default function Studio() {
         throw new Error('Choose a flyer below 20 megapixels and 8,000 × 9,000 pixels.');
       }
       if (id !== uploadId.current) return;
-      flyerHistory.current = [];
-      setCanUndoFlyer(false);
       setFlyer(image);
       setFileName(file.name);
     } catch (e) {
       toast.error((e as Error).message);
     }
-  }
-
-  async function removeFlyerBackground() {
-    if (!flyer || processingFlyer) return;
-    setProcessingFlyer(true);
-    try {
-      flyerHistory.current.push(flyer);
-      setCanUndoFlyer(true);
-      const canvas = removeLightBackground(flyer);
-      setFlyer(await imageFromCanvas(canvas));
-      toast.success('Light background removed. Use Undo to restore the previous version.');
-    } catch (e) {
-      flyerHistory.current.pop();
-      setCanUndoFlyer(flyerHistory.current.length > 0);
-      toast.error((e as Error).message);
-    } finally {
-      setProcessingFlyer(false);
-    }
-  }
-
-  function undoFlyerEdit() {
-    const previous = flyerHistory.current.pop();
-    if (!previous) return;
-    setFlyer(previous);
-    setCanUndoFlyer(flyerHistory.current.length > 0);
-    toast.message('Previous flyer version restored.');
   }
 
   function toggle(id: string) {
@@ -214,7 +182,7 @@ export default function Studio() {
         <section className="intro">
           <div>
             <p className="eyebrow">THE FINAL TOUCH</p>
-            <h1>Your flyer. Our original logos.</h1>
+            <h1>Your flyer. With the right branding.</h1>
             <p>Create in any AI app. Drag logos, tags and text into place on the preview.</p>
           </div>
           <span className="seal"><ShieldCheck size={19} /> Original artwork preserved</span>
@@ -230,17 +198,6 @@ export default function Studio() {
                 <strong>{flyer ? 'Change flyer' : 'Choose or drop a flyer'}</strong>
                 <span>{fileName || 'PNG, JPG or WebP · up to 20 MB'}</span>
               </button>
-              {flyer && (
-                <div className="image-tools">
-                  <button type="button" className="secondary" disabled={processingFlyer} onClick={() => void removeFlyerBackground()}>
-                    <Eraser size={16} />{processingFlyer ? 'Removing…' : 'Remove light background'}
-                  </button>
-                  <button type="button" className="secondary" disabled={!canUndoFlyer || processingFlyer} onClick={undoFlyerEdit}>
-                    <Undo2 size={16} /> Undo
-                  </button>
-                </div>
-              )}
-              <p className="hint">Works best on near-white backgrounds around logos. Your image stays on your device.</p>
               <button className="text-link" onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(prompt);
@@ -259,6 +216,7 @@ export default function Studio() {
                 <span className="count">{chosen.length} selected</span>
               </div>
               <a className="secondary collection-cta" href="/collection">{signedIn ? 'Upload and manage logos' : 'Sign in to upload logos'}</a>
+              <p className="hint">Logos with black or white boxes? Open Logo collection, upload the file, and use Remove background before saving.</p>
               <div className="selected-logos" aria-label="Logos selected for export">
                 <small>Selected for export</small>
                 <div>{chosen.map(l => <button key={l.id} onClick={() => toggle(l.id)} aria-label={`Remove ${l.name} from flyer`}>{l.name} ×</button>)}</div>
@@ -320,7 +278,7 @@ export default function Studio() {
                   <label className="colour-field strip-colour">Band colour<input type="color" value={design.background} onChange={e => setDesign({ ...design, background: e.target.value })} /></label>
                 </>
               )}
-              <p className="hint">Backgrounds inside logo files stay unchanged. Use Remove light background in step 1, or upload transparent originals.</p>
+              <p className="hint">Transparent PNG logos blend best on coloured bands. Remove solid backgrounds when uploading in Logo collection.</p>
               <button className="primary download" disabled={!ready || exporting || loading || !!catalogError} onClick={download}>
                 <Download size={18} />{exporting ? 'Preparing JPEG…' : 'Download JPEG'}
               </button>
@@ -358,7 +316,7 @@ export default function Studio() {
                 </div>
               )}
             </div>
-            <div className="preview-foot"><Check size={16} /><span>{showHandles ? 'Drag the dots on the preview. Alignment guides snap at centre and thirds.' : 'Guides hidden — this is your clean preview.'}</span></div>
+            <div className="preview-foot"><Check size={16} /><span>{showHandles ? 'Drag logos to align — guides snap to rows, columns, other logos, and equal spacing.' : 'Guides hidden — this is your clean preview.'}</span></div>
           </section>
         </div>
 
