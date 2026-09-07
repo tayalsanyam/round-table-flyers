@@ -88,13 +88,30 @@ export function defaultTextLayer(): TextLayer {
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
+  const cached = imageCache.get(src);
+  if (cached?.complete && cached.naturalWidth > 0) return Promise.resolve(cached);
+  const pending = pendingLoads.get(src);
+  if (pending) return pending;
+  const promise = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('An image could not be loaded. Refresh the logo collection and try again.'));
+    image.onload = () => {
+      imageCache.set(src, image);
+      pendingLoads.delete(src);
+      resolve(image);
+    };
+    image.onerror = () => {
+      pendingLoads.delete(src);
+      reject(new Error('An image could not be loaded. Refresh the logo collection and try again.'));
+    };
     image.src = src;
   });
+  pendingLoads.set(src, promise);
+  return promise;
 }
+
+const imageCache = new Map<string, HTMLImageElement>();
+const pendingLoads = new Map<string, Promise<HTMLImageElement>>();
+const loadedFonts = new Set<string>();
 
 export function layout(width: number, height: number, count: number, bandPlacement: BandPlacement, bandEnabled: boolean, extra = 0) {
   const rows = Math.ceil(count / 4);
@@ -227,9 +244,12 @@ export async function compose(
 ) {
   if (!logos.length) throw new Error('Choose at least one logo.');
   const loaded = await Promise.all(logos.map(l => loadImage(l.url)));
-  const fontsToLoad = new Set(['Modern', ...design.textLayers.map(t => t.font), ...design.tags.map(t => t.font)]);
-  if (typeof document !== 'undefined') {
-    await Promise.all([...fontsToLoad].map(f => document.fonts.load(`24px "${f}"`)));
+  const fontsToLoad = [...new Set(['Modern', ...design.textLayers.map(t => t.font), ...design.tags.map(t => t.font)])].filter(f => !loadedFonts.has(f));
+  if (typeof document !== 'undefined' && fontsToLoad.length) {
+    await Promise.all(fontsToLoad.map(async f => {
+      await document.fonts.load(`24px "${f}"`);
+      loadedFonts.add(f);
+    }));
   }
 
   const w = flyer.naturalWidth;

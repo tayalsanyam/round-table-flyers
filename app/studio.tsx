@@ -47,6 +47,9 @@ export default function Studio() {
   const fileInput = useRef<HTMLInputElement>(null);
   const renderId = useRef(0);
   const uploadId = useRef(0);
+  const draggingRef = useRef(false);
+  const hasRendered = useRef(false);
+  const composeFrame = useRef(0);
 
   const chosen = logos.filter(l => selected.includes(l.id));
 
@@ -85,27 +88,36 @@ export default function Studio() {
   }, [selected]);
 
   useEffect(() => {
-    const id = ++renderId.current;
-    setReady(false);
-    setRenderError('');
+    logos.forEach(logo => { void loadImage(logo.url).catch(() => undefined); });
+  }, [logos]);
+
+  useEffect(() => {
     if (!flyer) return;
-    const scratch = document.createElement('canvas');
-    compose(scratch, flyer, chosen, design)
-      .then(result => {
-        if (id !== renderId.current || !canvas.current) return;
-        const target = canvas.current;
-        target.width = scratch.width;
-        target.height = scratch.height;
-        target.getContext('2d')!.drawImage(scratch, 0, 0);
-        setDimensions(`${scratch.width} × ${result.outputHeight} px`);
-        setLayout(result);
-        setPreviewCanvas(target);
-        setReady(true);
-      })
-      .catch(e => {
-        if (id === renderId.current) setRenderError(e.message);
-      });
-  }, [flyer, chosen, logos, design]);
+    cancelAnimationFrame(composeFrame.current);
+    composeFrame.current = requestAnimationFrame(() => {
+      if (draggingRef.current) return;
+      const id = ++renderId.current;
+      if (!hasRendered.current) setReady(false);
+      const scratch = document.createElement('canvas');
+      void compose(scratch, flyer, chosen, design)
+        .then(result => {
+          if (id !== renderId.current || !canvas.current) return;
+          const target = canvas.current;
+          target.width = scratch.width;
+          target.height = scratch.height;
+          target.getContext('2d')!.drawImage(scratch, 0, 0);
+          setDimensions(`${scratch.width} × ${result.outputHeight} px`);
+          setLayout(result);
+          setPreviewCanvas(target);
+          setReady(true);
+          hasRendered.current = true;
+        })
+        .catch(e => {
+          if (id === renderId.current) setRenderError(e.message);
+        });
+    });
+    return () => cancelAnimationFrame(composeFrame.current);
+  }, [flyer, chosen, design]);
 
   async function upload(file?: File) {
     if (!file) return;
@@ -289,7 +301,7 @@ export default function Studio() {
               ) : (
                 <div className="preview-canvas-wrap">
                   <canvas ref={canvas} className={ready ? '' : 'canvas-pending'} aria-label="Finished flyer preview" />
-                  {ready && <PreviewEditor canvas={previewCanvas} layout={layout} design={design} selectedLogoIds={selected} onDesignChange={setDesign} />}
+                  {layout && <PreviewEditor canvas={previewCanvas ?? canvas.current} layout={layout} design={design} selectedLogoIds={selected} onDesignChange={setDesign} onDraggingChange={dragging => { draggingRef.current = dragging; }} />}
                   {!ready && !renderError && <p className="preview-status" role="status">Preparing your preview…</p>}
                   {renderError && <div className="preview-status error" role="alert">{renderError}</div>}
                 </div>

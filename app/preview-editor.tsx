@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Design, Layout, LogoLayout, TagLayer, TextLayer } from '@/lib/composite';
 
 type DragTarget =
@@ -13,86 +13,110 @@ type Props = {
   design: Design;
   selectedLogoIds: string[];
   onDesignChange: (design: Design) => void;
+  onDraggingChange?: (dragging: boolean) => void;
 };
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export default function PreviewEditor({ canvas, layout, design, selectedLogoIds, onDesignChange }: Props) {
-  const overlayRef = useRef<HTMLDivElement>(null);
+function isActive(target: DragTarget, handle: DragTarget) {
+    if (target.kind !== handle.kind) return false;
+    if (target.kind === 'text' && handle.kind === 'text') return target.id === handle.id;
+    if (target.kind === 'tag' && handle.kind === 'tag') return target.text === handle.text;
+    if (target.kind === 'logo' && handle.kind === 'logo') return target.id === handle.id;
+    return false;
+  }
+
+function applyPatch(design: Design, target: DragTarget, x: number, y: number): Design {
+  if (target.kind === 'text') {
+    return {
+      ...design,
+      textLayers: design.textLayers.map(layer => layer.id === target.id ? { ...layer, x, y } : layer),
+    };
+  }
+  if (target.kind === 'tag') {
+    return {
+      ...design,
+      tags: design.tags.map(tag => tag.text === target.text ? { ...tag, x, y } : tag),
+    };
+  }
+  return {
+    ...design,
+    logoLayouts: design.logoLayouts.map(item => item.id === target.id ? { ...item, x, y } : item),
+  };
+}
+
+export default function PreviewEditor({ canvas, layout, design, selectedLogoIds, onDesignChange, onDraggingChange }: Props) {
   const [drag, setDrag] = useState<DragTarget | null>(null);
+  const [draft, setDraft] = useState<Design | null>(null);
+  const canvasRef = useRef(canvas);
+  const layoutRef = useRef(layout);
+  canvasRef.current = canvas;
+  layoutRef.current = layout;
+
+  const active = draft ?? design;
+
+  function pointToFlyer(clientX: number, clientY: number) {
+    const currentCanvas = canvasRef.current;
+    const currentLayout = layoutRef.current;
+    if (!currentCanvas || !currentLayout) return { flyerX: 50, flyerY: 50 };
+    const rect = currentCanvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * (currentLayout.width / rect.width);
+    const y = (clientY - rect.top) * (currentLayout.outputHeight / rect.height);
+    return {
+      flyerX: clamp((x / currentLayout.width) * 100, 2, 98),
+      flyerY: clamp(((y - currentLayout.flyerY) / currentLayout.height) * 100, 2, 98),
+    };
+  }
+
+  useEffect(() => {
+    if (!drag) return;
+    onDraggingChange?.(true);
+
+    function onMove(event: PointerEvent) {
+      const { flyerX, flyerY } = pointToFlyer(event.clientX, event.clientY);
+      setDraft(current => applyPatch(current ?? design, drag!, flyerX, flyerY));
+    }
+
+    function onUp() {
+      setDraft(current => {
+        onDraggingChange?.(false);
+        if (current) onDesignChange(current);
+        return null;
+      });
+      setDrag(null);
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [drag, onDesignChange, onDraggingChange]);
 
   if (!canvas || !layout) return null;
 
-  function pointToFlyer(clientX: number, clientY: number) {
-    if (!canvas || !layout) return { flyerX: 50, flyerY: 50 };
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = layout.width / rect.width;
-    const scaleY = layout.outputHeight / rect.height;
-    const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
-    const flyerX = clamp((x / layout.width) * 100, 2, 98);
-    const flyerY = clamp(((y - layout.flyerY) / layout.height) * 100, 2, 98);
-    return { flyerX, flyerY };
-  }
-
-  function patchText(id: string, patch: Partial<TextLayer>) {
-    onDesignChange({
-      ...design,
-      textLayers: design.textLayers.map(layer => layer.id === id ? { ...layer, ...patch } : layer),
-    });
-  }
-
-  function patchTag(text: string, patch: Partial<TagLayer>) {
-    onDesignChange({
-      ...design,
-      tags: design.tags.map(tag => tag.text === text ? { ...tag, ...patch } : tag),
-    });
-  }
-
-  function patchLogo(id: string, patch: Partial<LogoLayout>) {
-    onDesignChange({
-      ...design,
-      logoLayouts: design.logoLayouts.map(item => item.id === id ? { ...item, ...patch } : item),
-    });
-  }
-
-  function onPointerDown(target: DragTarget, event: React.PointerEvent) {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag(target);
-  }
-
-  function onPointerMove(event: React.PointerEvent) {
-    if (!drag) return;
-    const { flyerX, flyerY } = pointToFlyer(event.clientX, event.clientY);
-    if (drag.kind === 'text') patchText(drag.id, { x: flyerX, y: flyerY });
-    if (drag.kind === 'tag') patchTag(drag.text, { x: flyerX, y: flyerY });
-    if (drag.kind === 'logo') patchLogo(drag.id, { x: flyerX, y: flyerY });
-  }
-
-  function onPointerUp() {
-    setDrag(null);
-  }
-
   const handles = [
-    ...design.textLayers.filter(layer => layer.text.trim()).map(layer => ({
+    ...active.textLayers.filter(layer => layer.text.trim()).map(layer => ({
       key: `text-${layer.id}`,
       label: 'Text',
       target: { kind: 'text' as const, id: layer.id },
       x: layer.x,
       y: layer.y,
     })),
-    ...design.tags.map(tag => ({
+    ...active.tags.map(tag => ({
       key: `tag-${tag.text}`,
       label: tag.text,
       target: { kind: 'tag' as const, text: tag.text },
       x: tag.x,
       y: tag.y,
     })),
-    ...(!design.bandEnabled
-      ? design.logoLayouts
+    ...(!active.bandEnabled
+      ? active.logoLayouts
           .filter(item => selectedLogoIds.includes(item.id))
           .map(item => ({
             key: `logo-${item.id}`,
@@ -105,29 +129,29 @@ export default function PreviewEditor({ canvas, layout, design, selectedLogoIds,
   ];
 
   return (
-    <div
-      ref={overlayRef}
-      className={`preview-overlay${drag ? ' dragging' : ''}`}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
+    <div className="preview-overlay" aria-hidden={handles.length === 0}>
       {handles.map(handle => (
         <button
           key={handle.key}
           type="button"
-          className="drag-handle"
+          className={`drag-handle${drag && isActive(drag, handle.target) ? ' active' : ''}`}
           style={{
             left: `${handle.x}%`,
             top: `${((layout.flyerY + layout.height * handle.y / 100) / layout.outputHeight) * 100}%`,
           }}
-          onPointerDown={event => onPointerDown(handle.target, event)}
+          onPointerDown={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            setDraft(design);
+            setDrag(handle.target);
+          }}
           aria-label={`Drag ${handle.label}`}
         >
-          {handle.label}
+          <span className="drag-handle-dot" />
+          <span className="drag-handle-label">{handle.label}</span>
         </button>
       ))}
-      <p className="preview-overlay-hint">Drag text, tags and logos on the preview.</p>
+      {handles.length > 0 && <p className="preview-overlay-hint">Drag the handles with your mouse or finger.</p>}
     </div>
   );
 }

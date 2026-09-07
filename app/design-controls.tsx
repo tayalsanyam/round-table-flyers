@@ -44,7 +44,7 @@ export default function DesignControls({ design, setDesign }: { design: Design; 
     <>
       <section className="panel">
         <h2><span className="step">3</span> Activity tags</h2>
-        <p className="hint">Choose tags, then drag them on the preview. Adjust size and font below.</p>
+        <p className="hint">Choose tags, then drag the handles on the preview. Adjust size and font below.</p>
         <div className="tag-choices">
           {activityTags.map(tag => (
             <label key={tag} className={`tag-choice ${design.tags.some(item => item.text === tag) ? 'active' : ''}`}>
@@ -59,8 +59,6 @@ export default function DesignControls({ design, setDesign }: { design: Design; 
             <label className="field">Font<Choice label={`Font for ${tag.text}`} value={tag.font} items={fonts} onChange={font => patchTag(tag.text, { font })} /></label>
             <Range label="Tag size" min={1} max={6} value={tag.size} onChange={size => patchTag(tag.text, { size })} />
             <label className="field">Colour<input type="color" value={tag.color} onChange={e => patchTag(tag.text, { color: e.target.value })} /></label>
-            <Range label="Horizontal position" min={5} max={95} value={tag.x} onChange={x => patchTag(tag.text, { x })} />
-            <Range label="Vertical position" min={2} max={98} value={tag.y} onChange={y => patchTag(tag.text, { y })} />
           </div>
         ))}
       </section>
@@ -70,7 +68,7 @@ export default function DesignControls({ design, setDesign }: { design: Design; 
           <h2><span className="step">4</span> Add text</h2>
           <span className="count">{design.textLayers.length}/6</span>
         </div>
-        <p className="hint">Text sits on the flyer artwork. Drag it on the preview or use the sliders.</p>
+        <p className="hint">Text sits on the flyer artwork. Drag the handle on the preview to place it.</p>
         {design.textLayers.map((layer, index) => (
           <div key={layer.id} className="text-layer">
             <div className="section-line">
@@ -87,8 +85,6 @@ export default function DesignControls({ design, setDesign }: { design: Design; 
               <Choice label={`Alignment for text ${index + 1}`} value={layer.align} items={['left', 'center', 'right'].map(v => [v, v[0].toUpperCase() + v.slice(1)])} onChange={align => patchText(layer.id, { align: align as TextLayer['align'] })} />
             </div>
             <Range label="Text size" min={1} max={15} value={layer.size} onChange={size => patchText(layer.id, { size })} />
-            <Range label="Horizontal position" min={5} max={95} value={layer.x} onChange={x => patchText(layer.id, { x })} />
-            <Range label="Vertical position" min={2} max={98} value={layer.y} onChange={y => patchText(layer.id, { y })} />
           </div>
         ))}
         <button className="secondary" disabled={design.textLayers.length >= 6} onClick={() => setDesign({ ...design, textLayers: [...design.textLayers, defaultTextLayer()] })}>
