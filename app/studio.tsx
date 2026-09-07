@@ -7,9 +7,12 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals, matchesLogo, logoScope, type Logo } from '@/lib/catalog';
 import { compose, loadImage, defaultLogoLayout, activityTags, type BandPlacement, type Design, type Layout } from '@/lib/composite';
+import { canvasToJpegBlob, downloadBlob, flyerExportName } from '@/lib/export-flyer';
+import { shareFlyerOnWhatsApp } from '@/lib/share-flyer';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
+import WhatsAppIcon from './whatsapp-icon';
 import Pick from './picker';
 
 const prompt = 'Create the flyer without organisation logos, emblems or imitation logos. Keep all text and artwork inside the flyer. I will add an official branding strip separately after generation.';
@@ -164,22 +167,36 @@ export default function Studio() {
         : [...s, id]);
   }
 
+  async function exportFlyer() {
+    if (!ready || !canvas.current) throw new Error('Your flyer is not ready yet.');
+    const blob = await canvasToJpegBlob(canvas.current);
+    return { blob, name: flyerExportName(fileName) };
+  }
+
   async function download() {
     if (!ready || !canvas.current) return;
     setExporting(true);
     try {
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.current!.toBlob(b => b ? resolve(b) : reject(new Error('Export failed. Try a smaller flyer.')), 'image/jpeg', 0.95);
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName.replace(/\.[^.]+$/, '') + '-area18.jpg';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      const { blob, name } = await exportFlyer();
+      downloadBlob(blob, name);
       toast.success('Your flyer is ready to save.');
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function shareWhatsApp() {
+    if (!ready || !canvas.current) return;
+    setExporting(true);
+    try {
+      const { blob, name } = await exportFlyer();
+      const result = await shareFlyerOnWhatsApp(blob, name);
+      if (result === 'shared') toast.success('Choose WhatsApp in the share menu to send your flyer.');
+      else toast.info('Your flyer was saved — attach the JPEG in WhatsApp.');
+    } catch (e) {
+      if ((e as DOMException).name !== 'AbortError') toast.error((e as Error).message);
     } finally {
       setExporting(false);
     }
@@ -257,7 +274,7 @@ export default function Studio() {
             <DesignControls design={design} setDesign={setDesign} activityTagOptions={activityTagOptions} />
 
             <section className="panel">
-              <h2><span className="step">5</span> Logo band & download</h2>
+              <h2><span className="step">5</span> Logo band, download & share</h2>
               <label className="field band-toggle">
                 <span>Add black logo band</span>
                 <Checkbox checked={design.bandEnabled} onCheckedChange={checked => setDesign({ ...design, bandEnabled: !!checked })} />
@@ -290,9 +307,15 @@ export default function Studio() {
                 </>
               )}
               <p className="hint">Transparent PNG logos blend best on coloured bands. Remove solid backgrounds when uploading in Logo collection.</p>
-              <button className="primary download" disabled={!ready || exporting || loading || !!catalogError} onClick={download}>
-                <Download size={18} />{exporting ? 'Preparing JPEG…' : 'Download JPEG'}
-              </button>
+              <div className="export-actions">
+                <button className="primary download" disabled={!ready || exporting || loading || !!catalogError} onClick={download}>
+                  <Download size={18} />{exporting ? 'Preparing JPEG…' : 'Download JPEG'}
+                </button>
+                <button className="whatsapp" disabled={!ready || exporting || loading || !!catalogError} onClick={shareWhatsApp}>
+                  <WhatsAppIcon size={18} />{exporting ? 'Preparing JPEG…' : 'Share on WhatsApp'}
+                </button>
+              </div>
+              <p className="hint">On your phone, Share opens WhatsApp with the finished flyer attached. On desktop, we save the JPEG and open WhatsApp Web so you can attach it.</p>
             </section>
           </aside>
 
