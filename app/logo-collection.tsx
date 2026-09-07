@@ -1,11 +1,13 @@
 'use client';
 import { useEffect,useRef,useState } from 'react';
-import { Trash2,RefreshCw,LockKeyhole,ShieldCheck,Upload } from 'lucide-react';
+import { Trash2,RefreshCw,LockKeyhole,ShieldCheck,Upload,Eraser,Undo2 } from 'lucide-react';
 import { AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals,matchesLogo,logoScope,groupedLogos,type Logo } from '@/lib/catalog';
 import { logoFields,detectedImage,MAX_LOGO_BYTES } from '@/lib/validation';
+import { fileFromCanvas, removeLightBackground } from '@/lib/background';
+import { loadImage } from '@/lib/composite';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import AppHeader from './app-header';
 import Pick from './picker';
@@ -25,10 +27,15 @@ export default function LogoCollection(){
   const [name,setName]=useState('');
   const [category,setCategory]=useState('Table');
   const [newFile,setNewFile]=useState<File|null>(null);
+  const [logoPreview,setLogoPreview]=useState('');
+  const [processingLogo,setProcessingLogo]=useState(false);
+  const [canUndoLogo,setCanUndoLogo]=useState(false);
   const [saving,setSaving]=useState(false);
   const [deleting,setDeleting]=useState<Logo|null>(null);
   const logoInput=useRef<HTMLInputElement>(null);
   const appliedProfile=useRef(false);
+  const logoHistory=useRef<File[]>([]);
+  const previewUrl=useRef('');
 
   async function refresh(){
     setLoading(true);
@@ -55,6 +62,50 @@ export default function LogoCollection(){
   }
 
   useEffect(()=>{void refresh();},[]);
+
+  useEffect(()=>()=>{if(previewUrl.current)URL.revokeObjectURL(previewUrl.current);},[]);
+
+  function setLogoFile(file:File|null,clearHistory=false){
+    if(previewUrl.current){
+      URL.revokeObjectURL(previewUrl.current);
+      previewUrl.current='';
+    }
+    if(clearHistory)logoHistory.current=[];
+    setCanUndoLogo(logoHistory.current.length>0);
+    setNewFile(file);
+    if(file){
+      previewUrl.current=URL.createObjectURL(file);
+      setLogoPreview(previewUrl.current);
+    }else{
+      setLogoPreview('');
+    }
+  }
+
+  async function removeLogoBackground(){
+    if(!newFile||processingLogo)return;
+    setProcessingLogo(true);
+    try{
+      logoHistory.current.push(newFile);
+      setCanUndoLogo(true);
+      const image=await loadImage(logoPreview);
+      const canvas=removeLightBackground(image);
+      setLogoFile(await fileFromCanvas(canvas,newFile.name));
+    }catch(e){
+      logoHistory.current.pop();
+      setCanUndoLogo(logoHistory.current.length>0);
+      toast.error((e as Error).message);
+    }finally{
+      setProcessingLogo(false);
+    }
+  }
+
+  function undoLogoEdit(){
+    const previous=logoHistory.current.pop();
+    if(!previous)return;
+    setLogoFile(previous);
+    setCanUndoLogo(logoHistory.current.length>0);
+    toast.message('Previous logo version restored.');
+  }
 
   async function addLogo(e:React.FormEvent){
     e.preventDefault();
@@ -84,7 +135,7 @@ export default function LogoCollection(){
         throw error;
       }
       setName('');
-      setNewFile(null);
+      setLogoFile(null,true);
       if(logoInput.current)logoInput.current.value='';
       await refresh();
       toast.success('Logo added to the shared collection.');
@@ -148,9 +199,18 @@ export default function LogoCollection(){
                 <input required maxLength={100} placeholder={category==='Official'?'e.g. Round Table India':'e.g. Chairman 2026–27'} value={name} onChange={e=>setName(e.target.value)}/>
               </label>}
               <label className="field">Original image
-                <input ref={logoInput} type="file" required accept="image/png,image/jpeg,image/webp" onChange={e=>setNewFile(e.target.files?.[0]||null)}/>
+                <input ref={logoInput} type="file" required accept="image/png,image/jpeg,image/webp" onChange={e=>setLogoFile(e.target.files?.[0]||null,true)}/>
               </label>
-              <p className="hint">PNG, JPG or WebP · up to 10 MB. Transparent PNGs work best on coloured strips.</p>
+              {logoPreview&&<div className="upload-preview"><img src={logoPreview} alt="Logo preview"/></div>}
+              {newFile&&<div className="image-tools">
+                <button type="button" className="secondary" disabled={processingLogo||saving} onClick={()=>void removeLogoBackground()}>
+                  <Eraser size={16}/>{processingLogo?'Removing…':'Remove light background'}
+                </button>
+                <button type="button" className="secondary" disabled={!canUndoLogo||processingLogo||saving} onClick={undoLogoEdit}>
+                  <Undo2 size={16}/> Undo
+                </button>
+              </div>}
+              <p className="hint">PNG, JPG or WebP · up to 10 MB. Transparent PNGs work best on coloured strips. Use Remove background for light boxes around a logo.</p>
               <button className="primary" disabled={saving||!newFile}>{saving?'Saving…':'Add to shared collection'}</button>
             </form>
           : <section className="panel access-panel">

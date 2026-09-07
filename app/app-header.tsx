@@ -11,7 +11,7 @@ export default function AppHeader({ signedIn, page }: { signedIn: boolean; page:
   return (
     <header className="topbar">
       <Link className="brand" href="/" aria-label="Round Table Flyer Finisher home">
-        <Image src="/branding/rtilogowhite.png" alt="Round Table India" width={52} height={52} className="brand-logo" priority />
+        <Image src="/branding/rtilogowhite.png" alt="Round Table India" width={80} height={80} className="brand-logo" priority />
         <span>Flyer Finisher<small>Round Table India</small></span>
       </Link>
 

@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Upload, Download, ShieldCheck, Plus, ImageIcon, Check, Copy, Layers } from 'lucide-react';
+import { Upload, Download, ShieldCheck, Plus, ImageIcon, Check, Copy, Layers, Eraser, Undo2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals, matchesLogo, logoScope, type Logo } from '@/lib/catalog';
 import { compose, loadImage, defaultLogoLayout, type BandPlacement, type Design, type Layout } from '@/lib/composite';
+import { imageFromCanvas, removeLightBackground } from '@/lib/background';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
@@ -41,6 +42,8 @@ export default function Studio() {
   const [dimensions, setDimensions] = useState('');
   const [filter, setFilter] = useState('All');
   const [showHandles, setShowHandles] = useState(true);
+  const [processingFlyer, setProcessingFlyer] = useState(false);
+  const [canUndoFlyer, setCanUndoFlyer] = useState(false);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [previewCanvas, setPreviewCanvas] = useState<HTMLCanvasElement | null>(null);
   const appliedProfile = useRef(false);
@@ -51,6 +54,7 @@ export default function Studio() {
   const draggingRef = useRef(false);
   const hasRendered = useRef(false);
   const composeFrame = useRef(0);
+  const flyerHistory = useRef<HTMLImageElement[]>([]);
 
   const chosen = logos.filter(l => selected.includes(l.id));
 
@@ -138,11 +142,39 @@ export default function Studio() {
         throw new Error('Choose a flyer below 20 megapixels and 8,000 × 9,000 pixels.');
       }
       if (id !== uploadId.current) return;
+      flyerHistory.current = [];
+      setCanUndoFlyer(false);
       setFlyer(image);
       setFileName(file.name);
     } catch (e) {
       toast.error((e as Error).message);
     }
+  }
+
+  async function removeFlyerBackground() {
+    if (!flyer || processingFlyer) return;
+    setProcessingFlyer(true);
+    try {
+      flyerHistory.current.push(flyer);
+      setCanUndoFlyer(true);
+      const canvas = removeLightBackground(flyer);
+      setFlyer(await imageFromCanvas(canvas));
+      toast.success('Light background removed. Use Undo to restore the previous version.');
+    } catch (e) {
+      flyerHistory.current.pop();
+      setCanUndoFlyer(flyerHistory.current.length > 0);
+      toast.error((e as Error).message);
+    } finally {
+      setProcessingFlyer(false);
+    }
+  }
+
+  function undoFlyerEdit() {
+    const previous = flyerHistory.current.pop();
+    if (!previous) return;
+    setFlyer(previous);
+    setCanUndoFlyer(flyerHistory.current.length > 0);
+    toast.message('Previous flyer version restored.');
   }
 
   function toggle(id: string) {
@@ -198,6 +230,17 @@ export default function Studio() {
                 <strong>{flyer ? 'Change flyer' : 'Choose or drop a flyer'}</strong>
                 <span>{fileName || 'PNG, JPG or WebP · up to 20 MB'}</span>
               </button>
+              {flyer && (
+                <div className="image-tools">
+                  <button type="button" className="secondary" disabled={processingFlyer} onClick={() => void removeFlyerBackground()}>
+                    <Eraser size={16} />{processingFlyer ? 'Removing…' : 'Remove light background'}
+                  </button>
+                  <button type="button" className="secondary" disabled={!canUndoFlyer || processingFlyer} onClick={undoFlyerEdit}>
+                    <Undo2 size={16} /> Undo
+                  </button>
+                </div>
+              )}
+              <p className="hint">Works best on near-white backgrounds around logos. Your image stays on your device.</p>
               <button className="text-link" onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(prompt);
@@ -277,7 +320,7 @@ export default function Studio() {
                   <label className="colour-field strip-colour">Band colour<input type="color" value={design.background} onChange={e => setDesign({ ...design, background: e.target.value })} /></label>
                 </>
               )}
-              <p className="hint">Backgrounds inside logo files stay unchanged. Use transparent originals to blend into another colour.</p>
+              <p className="hint">Backgrounds inside logo files stay unchanged. Use Remove light background in step 1, or upload transparent originals.</p>
               <button className="primary download" disabled={!ready || exporting || loading || !!catalogError} onClick={download}>
                 <Download size={18} />{exporting ? 'Preparing JPEG…' : 'Download JPEG'}
               </button>
