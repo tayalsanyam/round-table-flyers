@@ -91,18 +91,20 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
   return (
     <main className="auth-page">
       <Link className="auth-hero" href="/" aria-label="Round Table Flyer Finisher home">
-        <Image
-          src="/branding/rtilogowhite.png"
-          alt="Round Table India"
-          width={128}
-          height={128}
-          className="auth-hero-logo"
-          priority
-        />
-        <span className="brand-copy auth-hero-copy">
-          <span className="brand-title">Flyer Finisher</span>
-          <span className="brand-sub">Round Table India</span>
-        </span>
+        <div className="auth-hero-inner">
+          <Image
+            src="/branding/rtilogowhite.png"
+            alt="Round Table India"
+            width={168}
+            height={168}
+            className="auth-hero-logo"
+            priority
+          />
+          <span className="brand-copy auth-hero-copy">
+            <span className="brand-title">Flyer Finisher</span>
+            <span className="brand-sub">Round Table India</span>
+          </span>
+        </div>
       </Link>
 
       <section className="panel auth-card">
