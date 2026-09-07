@@ -40,6 +40,7 @@ export default function Studio() {
   const [exporting, setExporting] = useState(false);
   const [dimensions, setDimensions] = useState('');
   const [filter, setFilter] = useState('All');
+  const [showHandles, setShowHandles] = useState(true);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [previewCanvas, setPreviewCanvas] = useState<HTMLCanvasElement | null>(null);
   const appliedProfile = useRef(false);
@@ -286,7 +287,14 @@ export default function Studio() {
           <section className="preview-panel">
             <div className="preview-toolbar">
               <span><Layers size={17} /> Flyer preview</span>
-              <small>{flyer && ready ? dimensions : 'Your artwork appears here'}</small>
+              <div className="preview-toolbar-actions">
+                {flyer && layout && (
+                  <button type="button" className="quiet preview-toggle" onClick={() => setShowHandles(v => !v)}>
+                    {showHandles ? 'Hide guides' : 'Show guides'}
+                  </button>
+                )}
+                <small>{flyer && ready ? dimensions : 'Your artwork appears here'}</small>
+              </div>
             </div>
             <div className={`preview-stage ${flyer ? 'has-flyer' : ''}`}>
               {!flyer ? (
@@ -301,13 +309,13 @@ export default function Studio() {
               ) : (
                 <div className="preview-canvas-wrap">
                   <canvas ref={canvas} className={ready ? '' : 'canvas-pending'} aria-label="Finished flyer preview" />
-                  {layout && <PreviewEditor canvas={previewCanvas ?? canvas.current} layout={layout} design={design} selectedLogoIds={selected} onDesignChange={setDesign} onDraggingChange={dragging => { draggingRef.current = dragging; }} />}
+                  {layout && <PreviewEditor canvas={previewCanvas ?? canvas.current} layout={layout} design={design} selectedLogoIds={selected} visible={showHandles} onDesignChange={setDesign} onDraggingChange={dragging => { draggingRef.current = dragging; }} />}
                   {!ready && !renderError && <p className="preview-status" role="status">Preparing your preview…</p>}
                   {renderError && <div className="preview-status error" role="alert">{renderError}</div>}
                 </div>
               )}
             </div>
-            <div className="preview-foot"><Check size={16} /><span>Drag logos, tags and text on the preview. No AI redrawing.</span></div>
+            <div className="preview-foot"><Check size={16} /><span>{showHandles ? 'Drag the dots on the preview. Alignment guides snap at centre and thirds.' : 'Guides hidden — this is your clean preview.'}</span></div>
           </section>
         </div>
 
