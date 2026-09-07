@@ -77,3 +77,23 @@ create policy logo_file_cleanup on storage.objects for delete to authenticated u
  ((storage.foldername(name))[1]=(select auth.uid())::text and not exists(select 1 from public.logos l where l.object_key=storage.objects.name)))
 );
 -- Soft removal hides a logo from the app. An admin can restore removed_at in SQL.
+
+create table public.activity_tags (
+  id text primary key default gen_random_uuid()::text,
+  label text not null check (char_length(label) between 1 and 80),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  removed_at timestamptz
+);
+create unique index activity_tags_label_active on public.activity_tags (lower(label)) where removed_at is null;
+alter table public.activity_tags enable row level security;
+revoke all on public.activity_tags from anon, authenticated;
+grant select on public.activity_tags to anon, authenticated;
+grant insert, update on public.activity_tags to authenticated;
+create policy activity_tag_read on public.activity_tags for select using (removed_at is null);
+create policy activity_tag_admin_insert on public.activity_tags for insert to authenticated with check ((select public.is_admin()));
+create policy activity_tag_admin_update on public.activity_tags for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+insert into public.activity_tags (label, sort_order) values
+ ('LAPD Experience', 1),('Go Go Green', 2),('Community Service Activity', 3),('Business Meet', 4),('Socials', 5),
+ ('Fellowship', 6),('JAFFA', 7),('AEX', 8),('NEX', 9),('MTM', 10);

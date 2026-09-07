@@ -6,7 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals, matchesLogo, logoScope, type Logo } from '@/lib/catalog';
-import { compose, loadImage, defaultLogoLayout, type BandPlacement, type Design, type Layout } from '@/lib/composite';
+import { compose, loadImage, defaultLogoLayout, activityTags, type BandPlacement, type Design, type Layout } from '@/lib/composite';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
@@ -43,6 +43,7 @@ export default function Studio() {
   const [showHandles, setShowHandles] = useState(true);
   const [layout, setLayout] = useState<Layout | null>(null);
   const [previewCanvas, setPreviewCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [activityTagOptions, setActivityTagOptions] = useState<string[]>(activityTags);
   const appliedProfile = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -53,6 +54,16 @@ export default function Studio() {
   const composeFrame = useRef(0);
 
   const chosen = logos.filter(l => selected.includes(l.id));
+
+  async function refreshTags() {
+    try {
+      const r = await fetch('/api/activity-tags', { cache: 'no-store' });
+      const d = await r.json() as { tags: { label: string }[] };
+      if (r.ok && d.tags?.length) setActivityTagOptions(d.tags.map(tag => tag.label));
+    } catch {
+      setActivityTagOptions(activityTags);
+    }
+  }
 
   async function refresh() {
     setLoading(true);
@@ -76,7 +87,7 @@ export default function Studio() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { void refresh(); void refreshTags(); }, []);
 
   useEffect(() => {
     setDesign(current => ({
@@ -243,7 +254,7 @@ export default function Studio() {
               )}
             </section>
 
-            <DesignControls design={design} setDesign={setDesign} />
+            <DesignControls design={design} setDesign={setDesign} activityTagOptions={activityTagOptions} />
 
             <section className="panel">
               <h2><span className="step">5</span> Logo band & download</h2>

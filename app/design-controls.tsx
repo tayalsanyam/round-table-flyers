@@ -3,7 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { activityTags, fonts, defaultTagLayer, defaultTextLayer, type Design, type TextLayer } from '@/lib/composite';
+import { fonts, defaultTagLayer, defaultTextLayer, type Design, type TextLayer } from '@/lib/composite';
 
 function Choice({ label, value, items, onChange }: { label: string; value: string; items: string[][]; onChange: (v: string) => void }) {
   return (
@@ -23,7 +23,15 @@ function Range({ label, value, min, max, onChange }: { label: string; value: num
   );
 }
 
-export default function DesignControls({ design, setDesign }: { design: Design; setDesign: (d: Design) => void }) {
+export default function DesignControls({
+  design,
+  setDesign,
+  activityTagOptions,
+}: {
+  design: Design;
+  setDesign: (d: Design) => void;
+  activityTagOptions: string[];
+}) {
   function patchText(id: string, patch: Partial<TextLayer>) {
     setDesign({ ...design, textLayers: design.textLayers.map(layer => layer.id === id ? { ...layer, ...patch } : layer) });
   }
@@ -46,14 +54,14 @@ export default function DesignControls({ design, setDesign }: { design: Design; 
         <h2><span className="step">3</span> Activity tags</h2>
         <p className="hint">Choose tags, then drag the handles on the preview. Adjust size and font below.</p>
         <div className="tag-choices">
-          {activityTags.map(tag => (
+          {activityTagOptions.map(tag => (
             <label key={tag} className={`tag-choice ${design.tags.some(item => item.text === tag) ? 'active' : ''}`}>
               <Checkbox checked={design.tags.some(item => item.text === tag)} onCheckedChange={checked => toggleTag(tag, !!checked)} />
               {tag}
             </label>
           ))}
         </div>
-        {design.tags.map((tag, index) => (
+        {design.tags.map(tag => (
           <div key={tag.text} className="text-layer">
             <div className="section-line"><strong>{tag.text}</strong></div>
             <label className="field">Font<Choice label={`Font for ${tag.text}`} value={tag.font} items={fonts} onChange={font => patchTag(tag.text, { font })} /></label>

@@ -11,6 +11,8 @@ import { loadImage } from '@/lib/composite';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import AppHeader from './app-header';
 import Pick from './picker';
+import ActivityTagAdmin from './activity-tag-admin';
+import { fallbackActivityTags, type ActivityTag } from '@/lib/tags';
 
 export default function LogoCollection(){
   const [areaFilter,setAreaFilter]=useState('All');
@@ -32,6 +34,7 @@ export default function LogoCollection(){
   const [canUndoLogo,setCanUndoLogo]=useState(false);
   const [saving,setSaving]=useState(false);
   const [deleting,setDeleting]=useState<Logo|null>(null);
+  const [activityTags,setActivityTags]=useState<ActivityTag[]>(fallbackActivityTags());
   const logoInput=useRef<HTMLInputElement>(null);
   const appliedProfile=useRef(false);
   const logoHistory=useRef<File[]>([]);
@@ -62,6 +65,18 @@ export default function LogoCollection(){
   }
 
   useEffect(()=>{void refresh();},[]);
+
+  async function refreshTags(){
+    try{
+      const r=await fetch('/api/activity-tags',{cache:'no-store'});
+      const d=await r.json() as {tags:ActivityTag[]};
+      if(r.ok&&d.tags?.length)setActivityTags(d.tags);
+    }catch{
+      setActivityTags(fallbackActivityTags());
+    }
+  }
+
+  useEffect(()=>{if(admin)void refreshTags();},[admin]);
 
   useEffect(()=>()=>{if(previewUrl.current)URL.revokeObjectURL(previewUrl.current);},[]);
 
@@ -184,7 +199,8 @@ export default function LogoCollection(){
       {!configured&&<p className="error">Account services are not connected yet. See SETUP.md in the project package.</p>}
       {loading?<p role="status">Loading…</p>:<div className="admin-grid">
         {signedIn
-          ? <form className="panel add-form" onSubmit={addLogo}>
+          ? <div className="admin-stack">
+              <form className="panel add-form" onSubmit={addLogo}>
               <h2><Upload size={20}/> Upload a logo</h2>
               <p className="hint">Table logos are named RT 1–400. Area logos are named Area 1–18. Chairman and Official logos need a name.</p>
               <label className="field">Category
@@ -214,6 +230,8 @@ export default function LogoCollection(){
               <p className="hint">PNG, JPG or WebP · up to 10 MB. Use Remove background for logos on solid black or white boxes — saves as a transparent PNG. Undo restores the original file.</p>
               <button className="primary" disabled={saving||!newFile}>{saving?'Saving…':'Add to shared collection'}</button>
             </form>
+            {admin&&<ActivityTagAdmin tags={activityTags} onChange={refreshTags} />}
+          </div>
           : <section className="panel access-panel">
               <LockKeyhole size={30}/>
               <h2>Sign in to upload logos</h2>
