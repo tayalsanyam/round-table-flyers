@@ -1,0 +1,42 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+test('Supabase schema: members upload, all members read, only admin moderates, invalid areas/RTs fail',async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create role anon; create role authenticated; create schema auth; create schema storage;
+ create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,raw_user_meta_data jsonb);
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ grant usage on schema auth,storage to authenticated;grant execute on function auth.uid() to authenticated;
+ create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+ create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
+ alter table storage.objects enable row level security;grant select,insert,delete on storage.objects to authenticated;
+ create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;
+ grant execute on function storage.foldername(text) to authenticated;`);
+ await db.exec(fs.readFileSync('supabase/schema.sql','utf8'));
+ const owner='11111111-1111-4111-8111-111111111111',member='22222222-2222-4222-8222-222222222222';
+ await db.query(`insert into auth.users values($1,'owner@example.test',now(),'{"display_name":"Owner","area":18,"rt":400}'),($2,'member@example.test',now(),'{"display_name":"Member","area":1,"rt":1}')`,[owner,member]);
+ await db.query('insert into public.admin_users values($1)',[owner]);
+ await db.exec('set role authenticated');
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[member]);
+ assert.equal((await db.query('select public.is_admin() as yes')).rows[0].yes,false);
+ assert.equal((await db.query('select * from public.profiles')).rows.length,1);
+ await assert.rejects(db.query('insert into public.admin_users values($1)',[member]),/permission denied/);
+ const insert=`insert into public.logos(id,name,category,area,rt,object_key,content_type,created_by) values($1,$2,$3,$4,$5,$6,'image/png',$7)`;
+ await db.query(insert,['member-logo','RT 1','Table',1,1,member+'/image',member]);
+ await db.query("insert into storage.objects(bucket_id,name) values('logos',$1)",[member+'/image']);
+ assert.equal((await db.query('select * from storage.objects')).rows.length,1);
+ assert.equal((await db.query("update public.logos set removed_at=now() where id='member-logo' returning id")).rows.length,0);
+ assert.equal((await db.query("delete from storage.objects where name=$1 returning id",[member+'/image'])).rows.length,0);
+ await assert.rejects(db.query(insert,['bad-role','Official fake','Official',null,null,member+'/fake',member]),/row-level security/);
+ await assert.rejects(db.query(insert,['bad-area','Area 19','Area',19,null,member+'/bad',member]),/check constraint/);
+ await assert.rejects(db.query(insert,['bad-rt','RT 401','Table',1,401,member+'/badrt',member]),/check constraint/);
+ await assert.rejects(db.query("insert into storage.objects(bucket_id,name) values('logos',$1)",[owner+'/intrusion']),/row-level security/);
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ assert.equal((await db.query('select public.is_admin() as yes')).rows[0].yes,true);
+ assert.equal((await db.query('select * from storage.objects')).rows.length,1);
+ assert.equal((await db.query("update public.logos set removed_at=now() where id='member-logo' returning id")).rows.length,1);
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[member]);
+ assert.equal((await db.query("select * from public.logos where id='member-logo'")).rows.length,0);
+ }finally{await db.close();}
+});
