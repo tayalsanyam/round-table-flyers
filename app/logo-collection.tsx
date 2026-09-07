@@ -5,6 +5,8 @@ import { AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,Alert
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals,matchesLogo,logoScope,groupedLogos,type Logo } from '@/lib/catalog';
+import { logoFields,detectedImage,MAX_LOGO_BYTES } from '@/lib/validation';
+import { supabaseBrowser } from '@/lib/supabase/client';
 import AppHeader from './app-header';
 import Pick from './picker';
 
@@ -59,15 +61,28 @@ export default function LogoCollection(){
     if(!newFile)return;
     setSaving(true);
     try{
+      if(newFile.size>MAX_LOGO_BYTES)throw new Error('Choose an image smaller than 10 MB.');
+      const bytes=new Uint8Array(await newFile.arrayBuffer());
+      const contentType=detectedImage(bytes);
+      if(!contentType)throw new Error('Upload a PNG, JPG or WebP image.');
       const form=new FormData();
-      form.set('file',newFile);
       form.set('name',name);
       form.set('category',category);
       form.set('area',uploadArea);
       form.set('rt',uploadRt);
-      const r=await fetch('/api/logos',{method:'POST',body:form});
-      const d=await r.json() as {error:string};
-      if(!r.ok)throw new Error(d.error);
+      const fields=logoFields(form,admin);
+      const supabase=supabaseBrowser();
+      const {data:{user},error:userError}=await supabase.auth.getUser();
+      if(userError||!user)throw new Error('Sign in to upload a logo.');
+      const id=crypto.randomUUID();
+      const objectKey=`${user.id}/${id}`;
+      const {error:uploadError}=await supabase.storage.from('logos').upload(objectKey,bytes,{contentType,upsert:false});
+      if(uploadError)throw uploadError;
+      const {error}=await supabase.from('logos').insert({id,...fields,object_key:objectKey,content_type:contentType,created_by:user.id});
+      if(error){
+        await supabase.storage.from('logos').remove([objectKey]);
+        throw error;
+      }
       setName('');
       setNewFile(null);
       if(logoInput.current)logoInput.current.value='';
@@ -135,7 +150,7 @@ export default function LogoCollection(){
               <label className="field">Original image
                 <input ref={logoInput} type="file" required accept="image/png,image/jpeg,image/webp" onChange={e=>setNewFile(e.target.files?.[0]||null)}/>
               </label>
-              <p className="hint">PNG, JPG or WebP · up to 3 MB. Transparent PNGs work best on coloured strips.</p>
+              <p className="hint">PNG, JPG or WebP · up to 10 MB. Transparent PNGs work best on coloured strips.</p>
               <button className="primary" disabled={saving||!newFile}>{saving?'Saving…':'Add to shared collection'}</button>
             </form>
           : <section className="panel access-panel">

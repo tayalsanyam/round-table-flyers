@@ -77,7 +77,7 @@ Members cannot grant themselves admin privileges through their profile or browse
 
 Share the Vercel URL. Members create their own email accounts at `/signup`; they do not need ChatGPT. Everyone who signs up has member upload access, as requested. This is open signup, not verification of Round Table membership. If restricted membership is required later, add an invitation or approval process before rollout.
 
-Members select their Area and RT during signup. In Logo collection they choose Table, Area or Chairman, select the relevant Area, and choose RT 1–400 for Table uploads. Files must be PNG, JPG or WebP and under 3 MB; this stays below Vercel's request payload limit. Transparent originals work best on coloured strips. Backgrounds inside the logo files remain unchanged.
+Members select their Area and RT during signup. In Logo collection they choose Table, Area or Chairman, select the relevant Area, and choose RT 1–400 for Table uploads. Files must be PNG, JPG or WebP and under 10 MB. Uploads go directly to the private Supabase Storage bucket, not through Vercel’s request body limit. Transparent originals work best on coloured strips. Backgrounds inside the logo files remain unchanged.
 
 The original two logos are default selections. Check the selected logos before export, especially after changing filters. Tags and added text are rendered without regenerating logo artwork. Flyer image processing stays on the member's device.
 

@@ -63,7 +63,7 @@ create policy logo_admin_remove on public.logos for update to authenticated usin
 insert into public.logos(id,name,category,area) values('rti','Round Table India','Official',null),('area18','Area 18','Area',18);
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
-values('logos','logos',false,3000000,array['image/png','image/jpeg','image/webp']);
+values('logos','logos',false,10000000,array['image/png','image/jpeg','image/webp']);
 create policy logo_file_insert on storage.objects for insert to authenticated with check(
  bucket_id='logos' and (storage.foldername(name))[1]=(select auth.uid())::text
 );
