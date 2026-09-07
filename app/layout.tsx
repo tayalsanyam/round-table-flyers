@@ -20,11 +20,21 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_GB',
     url: siteUrl,
+    images: [
+      {
+        url: '/og-share-card.png',
+        width: 1200,
+        height: 630,
+        alt: 'Round Table Flyer Finisher — Correctly brand your flyers in minutes.',
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Round Table · Flyer Finisher',
     description: siteDescription,
+    images: ['/og-share-card.png'],
   },
 };
 
