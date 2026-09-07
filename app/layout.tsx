@@ -1,40 +1,19 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import SiteFooter from './site-footer';
+import { OG_IMAGE_PATH, SITE_DESCRIPTION, SITE_URL } from '@/lib/site';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rtiflyers.aaibuilt.com';
-const siteDescription = 'Correctly brand your flyers in minutes.';
+const siteTitle = 'Round Table · Flyer Finisher';
+const ogImageUrl = `${SITE_URL}${OG_IMAGE_PATH}`;
+const canonicalUrl = `${SITE_URL}/`;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: 'Round Table · Flyer Finisher',
-  description: siteDescription,
+  metadataBase: new URL(SITE_URL),
+  title: siteTitle,
+  description: SITE_DESCRIPTION,
   icons: {
     icon: '/branding/rtilogoblack.png',
     apple: '/branding/rtilogoblack.png',
-  },
-  openGraph: {
-    title: 'Round Table · Flyer Finisher',
-    description: siteDescription,
-    siteName: 'Flyer Finisher',
-    type: 'website',
-    locale: 'en_GB',
-    url: siteUrl,
-    images: [
-      {
-        url: '/og-share-card.png',
-        width: 1200,
-        height: 630,
-        alt: 'Round Table Flyer Finisher — Correctly brand your flyers in minutes.',
-        type: 'image/png',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Round Table · Flyer Finisher',
-    description: siteDescription,
-    images: ['/og-share-card.png'],
   },
 };
 
@@ -47,6 +26,25 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:title" content={siteTitle} />
+        <meta property="og:description" content={SITE_DESCRIPTION} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:site_name" content="Flyer Finisher" />
+        <meta property="og:type" content="website" />
+        <meta property="og:locale" content="en_GB" />
+        <meta property="og:image" content={ogImageUrl} />
+        <meta property="og:image:secure_url" content={ogImageUrl} />
+        <meta property="og:image:type" content="image/jpeg" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="Round Table Flyer Finisher — Correctly brand your flyers in minutes." />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={siteTitle} />
+        <meta name="twitter:description" content={SITE_DESCRIPTION} />
+        <meta name="twitter:image" content={ogImageUrl} />
+      </head>
       <body>
         {children}
         <SiteFooter />
