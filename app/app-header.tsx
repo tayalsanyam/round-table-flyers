@@ -10,10 +10,23 @@ export default function AppHeader({ signedIn, page }: { signedIn: boolean; page:
 
   return (
     <header className="topbar">
-      <Link className="brand" href="/" aria-label="Round Table Flyer Finisher home">
-        <Image src="/branding/rtilogowhite.png" alt="Round Table India" width={80} height={80} className="brand-logo" priority />
-        <span>Flyer Finisher<small>Round Table India</small></span>
-      </Link>
+      <div className="topbar-main">
+        <Link className="brand" href="/" aria-label="Round Table Flyer Finisher home">
+          <Image src="/branding/rtilogowhite.png" alt="Round Table India" width={112} height={112} className="brand-logo" priority />
+          <span className="brand-text">Flyer Finisher<small>Round Table India</small></span>
+        </Link>
+
+        <div className="account-actions">
+          {signedIn ? (
+            <form action="/auth/logout" method="post"><button className="quiet" type="submit">Sign out</button></form>
+          ) : (
+            <>
+              <Link className="quiet" href={`/login?next=${next}`}>Sign in</Link>
+              <Link className="quiet" href={`/signup?next=${next}`}>Sign up</Link>
+            </>
+          )}
+        </div>
+      </div>
 
       <nav className="topbar-nav" aria-label="Main">
         {page !== 'studio' && <Link className="quiet" href="/"><Layers size={17} /> Studio</Link>}
@@ -22,17 +35,6 @@ export default function AppHeader({ signedIn, page }: { signedIn: boolean; page:
         {page === 'collection' && <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>}
         {page === 'concern' && <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>}
       </nav>
-
-      <div className="account-actions">
-        {signedIn ? (
-          <form action="/auth/logout" method="post"><button className="quiet">Sign out</button></form>
-        ) : (
-          <>
-            <Link className="quiet" href={`/login?next=${next}`}>Sign in</Link>
-            <Link className="quiet" href={`/signup?next=${next}`}>Sign up</Link>
-          </>
-        )}
-      </div>
     </header>
   );
 }
