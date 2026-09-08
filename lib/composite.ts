@@ -109,6 +109,11 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   return promise;
 }
 
+export function clearImageCache() {
+  imageCache.clear();
+  pendingLoads.clear();
+}
+
 const imageCache = new Map<string, HTMLImageElement>();
 const pendingLoads = new Map<string, Promise<HTMLImageElement>>();
 const loadedFonts = new Set<string>();

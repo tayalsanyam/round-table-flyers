@@ -7,7 +7,9 @@ import { toast } from 'sonner';
 import { originals,matchesLogo,logoScope,groupedLogos,type Logo } from '@/lib/catalog';
 import { logoFields,detectedImage,MAX_LOGO_BYTES } from '@/lib/validation';
 import { fileFromCanvas, removeLogoBackground as stripLogoBackground } from '@/lib/background';
-import { loadImage } from '@/lib/composite';
+import { loadImage, clearImageCache } from '@/lib/composite';
+import { fetchCatalog } from '@/lib/fetch-catalog';
+import { useRefreshOnVisible } from '@/lib/use-refresh-on-visible';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import AppHeader from './app-header';
 import Pick from './picker';
@@ -44,9 +46,8 @@ export default function LogoCollection(){
     setLoading(true);
     setCatalogError('');
     try{
-      const r=await fetch('/api/catalog',{cache:'no-store'});
-      const d=await r.json() as {error:string;logos:Logo[];admin:boolean;signedIn:boolean;configured:boolean;profile?:{area:number;rt:number}};
-      if(!r.ok)throw new Error(d.error);
+      const d=await fetchCatalog();
+      clearImageCache();
       setLogos(d.logos);
       setAdmin(d.admin);
       setSignedIn(d.signedIn);
@@ -63,6 +64,8 @@ export default function LogoCollection(){
       setLoading(false);
     }
   }
+
+  useRefreshOnVisible(() => { void refresh(); });
 
   useEffect(()=>{void refresh();},[]);
 
@@ -253,7 +256,7 @@ export default function LogoCollection(){
           {groups.map(group=><div className="logo-group" key={group.category}>
             <h3>{group.category} logos</h3>
             {group.items.map(l=><div className="admin-logo" key={l.id}>
-              <span className="logo-thumb"><img src={l.url} alt=""/></span>
+              <span className="logo-thumb"><img src={l.url} alt="" key={l.url}/></span>
               <span className="logo-name">
                 <strong>{l.name}</strong>
                 <small>{logoScope(l)}</small>

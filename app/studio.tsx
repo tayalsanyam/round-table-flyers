@@ -6,7 +6,9 @@ import { Slider } from '@/components/ui/slider';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals, matchesLogo, logoScope, type Logo } from '@/lib/catalog';
-import { compose, loadImage, defaultLogoLayout, activityTags, type BandPlacement, type Design, type Layout } from '@/lib/composite';
+import { compose, loadImage, defaultLogoLayout, activityTags, clearImageCache, type BandPlacement, type Design, type Layout } from '@/lib/composite';
+import { fetchCatalog } from '@/lib/fetch-catalog';
+import { useRefreshOnVisible } from '@/lib/use-refresh-on-visible';
 import { buildShareFile, canvasToJpegBlob, downloadBlob, flyerExportName } from '@/lib/export-flyer';
 import { canShareFiles, isMobileDevice, saveFlyerForManualShare, shareFlyerFile } from '@/lib/share-flyer';
 import DesignControls from './design-controls';
@@ -73,11 +75,13 @@ export default function Studio() {
     setLoading(true);
     setCatalogError('');
     try {
-      const r = await fetch('/api/catalog', { cache: 'no-store' });
-      const d = await r.json() as { error: string; logos: Logo[]; signedIn: boolean; configured: boolean; profile?: { area: number } };
-      if (!r.ok) throw new Error(d.error);
+      const d = await fetchCatalog();
+      clearImageCache();
       setLogos(d.logos);
-      setSelected(s => s.filter(id => d.logos.some((l: Logo) => l.id === id)));
+      setSelected(s => {
+        const valid = s.filter(id => d.logos.some(logo => logo.id === id));
+        return valid.length ? valid : ['rti', 'area18'].filter(id => d.logos.some(logo => logo.id === id));
+      });
       setSignedIn(d.signedIn);
       setConfigured(d.configured);
       if (d.profile && !appliedProfile.current) {
@@ -90,6 +94,8 @@ export default function Studio() {
       setLoading(false);
     }
   }
+
+  useRefreshOnVisible(() => { void refresh(); });
 
   useEffect(() => { void refresh(); void refreshTags(); }, []);
 
@@ -288,12 +294,13 @@ export default function Studio() {
               </div>
               <Pick label="Filter logos" value={filter} onChange={setFilter} items={['All', 'Official', 'Area', 'Table', 'Chairman'].map(x => [x, x === 'All' ? 'All logo types' : `${x} logos`])} />
               {!configured && <p className="error">Account services are not connected yet. See SETUP.md in the project package.</p>}
+              {!loading && configured && !signedIn && <p className="hint">Sign in to load the full shared logo collection. Until then, only the built-in official logos are available.</p>}
               {loading && <p role="status" className="muted">Loading the shared collection…</p>}
               {catalogError && <div className="error" role="alert">{catalogError}<button onClick={refresh}>Try again</button></div>}
               <div className="logo-list">
                 {logos.filter(l => matchesLogo(l, areaFilter, rtFilter, filter)).map(l => (
                   <label className={`logo-option ${selected.includes(l.id) ? 'selected' : ''}`} key={l.id}>
-                    <span className="logo-thumb"><img src={l.url} alt="" /></span>
+                    <span className="logo-thumb"><img src={l.url} alt="" key={l.url} /></span>
                     <span className="logo-name"><strong>{l.name}</strong><small>{logoScope(l)}</small></span>
                     <Checkbox aria-label={`Select ${l.name}`} checked={selected.includes(l.id)} onCheckedChange={() => toggle(l.id)} />
                   </label>
