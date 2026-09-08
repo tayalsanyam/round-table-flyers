@@ -30,6 +30,7 @@ export default function LogoCollection(){
   const [catalogError,setCatalogError]=useState('');
   const [name,setName]=useState('');
   const [category,setCategory]=useState('Table');
+  const [tableKind,setTableKind]=useState<'standard'|'chairman'>('standard');
   const [newFile,setNewFile]=useState<File|null>(null);
   const [logoPreview,setLogoPreview]=useState('');
   const [processingLogo,setProcessingLogo]=useState(false);
@@ -41,8 +42,8 @@ export default function LogoCollection(){
 
   useEffect(() => {
     if (category === 'Area') setName(`Area ${uploadArea}`);
-    else if (category === 'Table') setName('');
-  }, [category, uploadArea]);
+    else if (category === 'Table' && tableKind === 'standard') setName('');
+  }, [category, uploadArea, tableKind]);
   const appliedProfile=useRef(false);
   const logoHistory=useRef<File[]>([]);
   const previewUrl=useRef('');
@@ -145,6 +146,7 @@ export default function LogoCollection(){
       form.set('category',category);
       form.set('area',uploadArea);
       form.set('rt',uploadRt);
+      form.set('table_kind',tableKind);
       const fields=logoFields(form,admin);
       const supabase=supabaseBrowser();
       const {data:{user},error:userError}=await supabase.auth.getUser();
@@ -153,12 +155,14 @@ export default function LogoCollection(){
       const objectKey=`${user.id}/${id}`;
       const {error:uploadError}=await supabase.storage.from('logos').upload(objectKey,bytes,{contentType,upsert:false});
       if(uploadError)throw uploadError;
-      const {error}=await supabase.from('logos').insert({id,...fields,object_key:objectKey,content_type:contentType,created_by:user.id});
+      const { tableKind: kind, ...row } = fields;
+      const {error}=await supabase.from('logos').insert({id,...row,table_kind:kind,object_key:objectKey,content_type:contentType,created_by:user.id});
       if(error){
         await supabase.storage.from('logos').remove([objectKey]);
         throw error;
       }
       setName('');
+      setTableKind('standard');
       setLogoFile(null,true);
       if(logoInput.current)logoInput.current.value='';
       await refresh();
@@ -210,9 +214,9 @@ export default function LogoCollection(){
           ? <div className="admin-stack">
               <form className="panel add-form" onSubmit={addLogo}>
               <h2><Upload size={20}/> Upload a logo</h2>
-              <p className="hint">Table logos are named RT 1–400 automatically. Area, Chairman and Official logos need a name.</p>
+              <p className="hint">Standard table crests are named RT 1–400. Chairman themes and area logos need a custom name.</p>
               <label className="field">Category
-                <Pick label="Logo category" value={category} onChange={setCategory} items={(admin?['Table','Area','Chairman','Official']:['Table','Area','Chairman']).map(x=>[x,x])}/>
+                <Pick label="Logo category" value={category} onChange={setCategory} items={(admin?['Table','Area','Official']:['Table','Area']).map(x=>[x,x])}/>
               </label>
               {category!=='Official'&&<label className="field">Area
                 <Pick label="Logo area" value={uploadArea} onChange={setUploadArea} items={Array.from({length:18},(_,i)=>[String(i+1),'Area '+(i+1)])}/>
@@ -220,8 +224,11 @@ export default function LogoCollection(){
               {category==='Table'&&<label className="field">Round Table
                 <Pick label="Logo round table" value={uploadRt} onChange={setUploadRt} items={Array.from({length:400},(_,i)=>[String(i+1),'RT '+(i+1)])}/>
               </label>}
-              {category!=='Table'&&<label className="field">Logo name
-                <input required maxLength={100} placeholder={category==='Official'?'e.g. Round Table India':category==='Chairman'?'e.g. Chairman 2026–27':`e.g. Area ${uploadArea} Spring Gala`} value={name} onChange={e=>setName(e.target.value)}/>
+              {category==='Table'&&<label className="field">Table logo type
+                <Pick label="Table logo type" value={tableKind} onChange={v=>setTableKind(v as 'standard'|'chairman')} items={[['standard','Standard crest'],['chairman','Chairman theme']]}/>
+              </label>}
+              {(category!=='Table'||tableKind==='chairman')&&<label className="field">Logo name
+                <input required maxLength={100} placeholder={category==='Official'?'e.g. Round Table India':tableKind==='chairman'?'e.g. Chairman 2026–27':`e.g. Area ${uploadArea} Spring Gala`} value={name} onChange={e=>setName(e.target.value)}/>
               </label>}
               <label className="field">Original image
                 <input ref={logoInput} type="file" required accept="image/png,image/jpeg,image/webp" onChange={e=>setLogoFile(e.target.files?.[0]||null,true)}/>
@@ -243,7 +250,7 @@ export default function LogoCollection(){
           : <section className="panel access-panel">
               <LockKeyhole size={30}/>
               <h2>Sign in to upload logos</h2>
-              <p>Create an account with your email to add Table, Area and Chairman logos. The shared collection on the right is available to everyone.</p>
+              <p>Create an account with your email to add table and area logos. The shared collection on the right is available to everyone.</p>
               <a className="secondary" href="/login?next=/collection">Sign in</a>
               <a className="text-link" href="/signup?next=/collection">Create an account</a>
             </section>}
@@ -256,8 +263,8 @@ export default function LogoCollection(){
             <Pick label="Filter by area" value={areaFilter} onChange={setAreaFilter} items={[['All','All areas'],...Array.from({length:18},(_,i)=>[String(i+1),'Area '+(i+1)])]}/>
             <Pick label="Filter by round table" value={rtFilter} onChange={setRtFilter} items={[['All','All RTs'],...Array.from({length:400},(_,i)=>[String(i+1),'RT '+(i+1)])]}/>
           </div>
-          <Pick label="Filter logos" value={typeFilter} onChange={setTypeFilter} items={['All','Official','Area','Table','Chairman'].map(x=>[x,x==='All'?'All logo types':x+' logos'])}/>
-          <p className="hint">Each row shows the category plus Area and RT when they apply. National / official logos stay visible across areas.</p>
+          <Pick label="Filter logos" value={typeFilter} onChange={setTypeFilter} items={['All','Official','Area','Table'].map(x=>[x,x==='All'?'All logo types':x+' logos'])}/>
+          <p className="hint">Chairman themes appear when you pick a specific RT. Each row shows the category plus Area and RT when they apply.</p>
           <div className="logo-list">
           {groups.map(group=><div className="logo-group" key={group.category}>
             <h3>{group.category} logos</h3>

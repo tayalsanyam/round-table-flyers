@@ -7,12 +7,16 @@ export function mapLogoRow(row: Record<string, unknown>) {
   const original = originals.find(item => item.id === id);
   const version = String(row.created_at ?? id);
   const baseUrl = original?.url ?? `/api/logos/${id}`;
+  const category = String(row.category);
+  const tableKindRaw = row.table_kind ?? (category === 'Chairman' ? 'chairman' : 'standard');
+  const tableKind = tableKindRaw === 'chairman' ? 'chairman' : 'standard';
   return {
     id,
     name: String(row.name),
-    category: String(row.category),
+    category: category === 'Chairman' ? 'Table' : category,
     area: row.area == null ? null : Number(row.area),
     rt: row.rt == null ? null : Number(row.rt),
+    tableKind: category === 'Table' || category === 'Chairman' ? tableKind : undefined,
     url: withLogoVersion(baseUrl, version),
     builtin: !!original,
     sourceRect: original?.sourceRect,

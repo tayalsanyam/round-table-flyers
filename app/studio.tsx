@@ -292,7 +292,7 @@ export default function Studio() {
                 <Pick label="Filter by area" value={areaFilter} onChange={setAreaFilter} items={[['All', 'All areas'], ...Array.from({ length: 18 }, (_, i) => [String(i + 1), `Area ${i + 1}`])]} />
                 <Pick label="Filter by round table" value={rtFilter} onChange={setRtFilter} items={[['All', 'All RTs'], ...Array.from({ length: 400 }, (_, i) => [String(i + 1), `RT ${i + 1}`])]} />
               </div>
-              <Pick label="Filter logos" value={filter} onChange={setFilter} items={['All', 'Official', 'Area', 'Table', 'Chairman'].map(x => [x, x === 'All' ? 'All logo types' : `${x} logos`])} />
+              <Pick label="Filter logos" value={filter} onChange={setFilter} items={['All', 'Official', 'Area', 'Table'].map(x => [x, x === 'All' ? 'All logo types' : `${x} logos`])} />
               {!configured && <p className="error">Account services are not connected yet. See SETUP.md in the project package.</p>}
               {loading && <p role="status" className="muted">Loading the shared collection…</p>}
               {catalogError && <div className="error" role="alert">{catalogError}<button onClick={refresh}>Try again</button></div>}

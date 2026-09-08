@@ -16,7 +16,8 @@ export async function POST(request:Request){
     const id=crypto.randomUUID(),objectKey=`${user.id}/${id}`;
     const {error:uploadError}=await supabase.storage.from('logos').upload(objectKey,bytes,{contentType,upsert:false});
     if(uploadError)throw uploadError;
-    const {error}=await supabase.from('logos').insert({id,...fields,object_key:objectKey,content_type:contentType,created_by:user.id});
+    const { tableKind, ...row } = fields;
+    const {error}=await supabase.from('logos').insert({id,...row,table_kind:tableKind,object_key:objectKey,content_type:contentType,created_by:user.id});
     if(error){await supabase.storage.from('logos').remove([objectKey]);throw error;}
     return Response.json({ok:true},{status:201});
   }catch(e){return failure(e);}

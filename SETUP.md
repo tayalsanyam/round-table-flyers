@@ -6,7 +6,7 @@ This is the independent Next.js version. It does not depend on ChatGPT login, Si
 
 - Email signup, email confirmation, login, logout and password reset.
 - Signup profile: name, Area 1–18 and RT 1–400. Area-to-RT mappings are not assumed.
-- Shared logo collection: Official, Area, Table and Chairman categories.
+- Shared logo collection: Official, Area and Table categories. Table uploads can be a standard crest or a chairman theme for a specific RT.
 - Independent Area, RT and logo-type filters. National logos remain visible across areas; an RT filter retains area-wide logos. Filters narrow the picker; changing a filter does not remove already selected logos.
 - Table names are generated as RT 1 through RT 400. Area logo names are generated as Area 1 through Area 18. This does not invent logos for areas or tables that have not uploaded one.
 - Members upload original logos; admins remove any logo and can upload official logos.
@@ -79,7 +79,7 @@ Members cannot grant themselves admin privileges through their profile or browse
 
 Share the Vercel URL. Members create their own email accounts at `/signup`; they do not need ChatGPT. Everyone who signs up has member upload access, as requested. This is open signup, not verification of Round Table membership. If restricted membership is required later, add an invitation or approval process before rollout.
 
-Members select their Area and RT during signup. In Logo collection they choose Table, Area or Chairman, select the relevant Area, and choose RT 1–400 for Table uploads. Files must be PNG, JPG or WebP and under 10 MB. Uploads go directly to the private Supabase Storage bucket, not through Vercel’s request body limit. Transparent originals work best on coloured strips. Backgrounds inside the logo files remain unchanged.
+Members select their Area and RT during signup. In Logo collection they choose Table or Area, select the relevant Area, and choose RT 1–400 for Table uploads. Table uploads can be a standard crest (named RT 1–400) or a chairman theme (custom name, same RT). Chairman themes only appear when a specific RT is selected in filters. Files must be PNG, JPG or WebP and under 10 MB. Uploads go directly to the private Supabase Storage bucket, not through Vercel’s request body limit. Transparent originals work best on coloured strips. Backgrounds inside the logo files remain unchanged.
 
 The original two logos are default selections. Check the selected logos before export, especially after changing filters. Tags and added text are rendered without regenerating logo artwork. Flyer image processing stays on the member's device.
 

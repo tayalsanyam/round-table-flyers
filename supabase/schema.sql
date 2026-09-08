@@ -34,7 +34,8 @@ create trigger on_auth_user_created after insert on auth.users for each row exec
 create table public.logos (
  id text primary key default gen_random_uuid()::text,
  name text not null check(char_length(name) between 1 and 100),
- category text not null check(category in ('Official','Area','Table','Chairman')),
+ category text not null check(category in ('Official','Area','Table')),
+ table_kind text not null default 'standard' check(table_kind in ('standard','chairman')),
  area integer check(area between 1 and 18),
  rt integer check(rt between 1 and 400),
  object_key text unique,
@@ -44,6 +45,7 @@ create table public.logos (
  removed_at timestamptz,
  constraint valid_area check((category='Official' and area is null) or (category<>'Official' and area is not null)),
  constraint valid_table check((category='Table' and rt is not null) or (category<>'Table' and rt is null)),
+ constraint valid_table_kind check((category='Table') or (table_kind='standard')),
  constraint valid_asset check((id in ('rti','area18') and object_key is null) or (object_key is not null and content_type is not null))
 );
 create index logos_area_category on public.logos(area,category) where removed_at is null;
