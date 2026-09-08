@@ -51,9 +51,11 @@ create index logos_created_by on public.logos(created_by);
 create index logos_rt on public.logos(rt) where rt is not null and removed_at is null;
 alter table public.logos enable row level security;
 revoke all on public.logos from anon,authenticated;
-grant select,insert on public.logos to authenticated;
+grant select on public.logos to anon, authenticated;
+grant insert on public.logos to authenticated;
 grant update(removed_at) on public.logos to authenticated;
 create policy logo_read on public.logos for select to authenticated using(removed_at is null or (select public.is_admin()));
+create policy logo_public_read on public.logos for select to anon using(removed_at is null);
 create policy logo_member_insert on public.logos for insert to authenticated with check(
  created_by=(select auth.uid()) and removed_at is null and id not in ('rti','area18')
  and object_key like ((select auth.uid())::text || '/%')
@@ -70,6 +72,10 @@ create policy logo_file_insert on storage.objects for insert to authenticated wi
 create policy logo_file_read on storage.objects for select to authenticated using(
  bucket_id='logos' and (exists(select 1 from public.logos l where l.object_key=storage.objects.name and l.removed_at is null)
  or ((storage.foldername(name))[1]=(select auth.uid())::text and not exists(select 1 from public.logos l where l.object_key=storage.objects.name)))
+);
+grant select on storage.objects to anon;
+create policy logo_file_public_read on storage.objects for select to anon using(
+ bucket_id='logos' and exists(select 1 from public.logos l where l.object_key=storage.objects.name and l.removed_at is null)
 );
 -- Members may clean up failed uploads only. They cannot delete a published logo.
 create policy logo_file_cleanup on storage.objects for delete to authenticated using(

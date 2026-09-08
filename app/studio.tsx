@@ -294,7 +294,6 @@ export default function Studio() {
               </div>
               <Pick label="Filter logos" value={filter} onChange={setFilter} items={['All', 'Official', 'Area', 'Table', 'Chairman'].map(x => [x, x === 'All' ? 'All logo types' : `${x} logos`])} />
               {!configured && <p className="error">Account services are not connected yet. See SETUP.md in the project package.</p>}
-              {!loading && configured && !signedIn && <p className="hint">Sign in to load the full shared logo collection. Until then, only the built-in official logos are available.</p>}
               {loading && <p role="status" className="muted">Loading the shared collection…</p>}
               {catalogError && <div className="error" role="alert">{catalogError}<button onClick={refresh}>Try again</button></div>}
               <div className="logo-list">

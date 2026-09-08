@@ -14,6 +14,7 @@ test('Supabase schema: members upload, all members read, only admin moderates, i
  create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;
  grant execute on function storage.foldername(text) to authenticated;`);
  await db.exec(fs.readFileSync('supabase/schema.sql','utf8'));
+ await db.exec('grant usage on schema public to anon;');
  const owner='11111111-1111-4111-8111-111111111111',member='22222222-2222-4222-8222-222222222222';
  await db.query(`insert into auth.users values($1,'owner@example.test',now(),'{"display_name":"Owner","area":18,"rt":400}'),($2,'member@example.test',now(),'{"display_name":"Member","area":1,"rt":1}')`,[owner,member]);
  await db.query('insert into public.admin_users values($1)',[owner]);
@@ -38,5 +39,8 @@ test('Supabase schema: members upload, all members read, only admin moderates, i
  assert.equal((await db.query("update public.logos set removed_at=now() where id='member-logo' returning id")).rows.length,1);
  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[member]);
  assert.equal((await db.query("select * from public.logos where id='member-logo'")).rows.length,0);
+ await db.exec('set role anon');
+ assert.ok((await db.query("select id from public.logos where id='rti'")).rows.length);
+ assert.equal((await db.query("select id from public.logos where id='member-logo'")).rows.length,0);
  }finally{await db.close();}
 });
