@@ -19,8 +19,7 @@ export async function GET() {
     }
 
     const supabase = await supabaseServer();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
+    const { data: { user } } = await supabase.auth.getUser();
 
     const logos = await listCatalogLogos(supabase);
     let admin = false;
