@@ -238,7 +238,7 @@ export default function LogoCollection(){
           : <section className="panel access-panel">
               <LockKeyhole size={30}/>
               <h2>Sign in to upload logos</h2>
-              <p>Create an account with your email to add Table, Area and Chairman logos. The list on the right still shows the shared collection you can browse after signing in.</p>
+              <p>Create an account with your email to add Table, Area and Chairman logos. The shared collection on the right is available to everyone.</p>
               <a className="secondary" href="/login?next=/collection">Sign in</a>
               <a className="text-link" href="/signup?next=/collection">Create an account</a>
             </section>}
