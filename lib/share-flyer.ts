@@ -1,23 +1,44 @@
-import { downloadBlob } from './export-flyer';
+import { buildShareFile, downloadBlob } from './export-flyer';
 
-export type WhatsAppShareResult = 'shared' | 'fallback';
+export type ShareFlyerResult = 'shared' | 'saved';
 
-export async function shareFlyerOnWhatsApp(blob: Blob, fileName: string): Promise<WhatsAppShareResult> {
-  const file = new File([blob], fileName, { type: 'image/jpeg' });
-  const shareData: ShareData = { files: [file], title: 'Round Table flyer' };
+export function canShareFiles(file: File) {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
+  const payload: ShareData = { files: [file] };
+  return typeof navigator.canShare !== 'function' || navigator.canShare(payload);
+}
 
-  if (typeof navigator !== 'undefined' && navigator.share) {
-    if (!navigator.canShare || navigator.canShare(shareData)) {
-      try {
-        await navigator.share(shareData);
-        return 'shared';
-      } catch (error) {
-        if ((error as DOMException).name === 'AbortError') throw error;
-      }
+/** iOS rejects share payloads that mix files with title/text/url. */
+export function shareFlyerFile(file: File) {
+  return navigator.share({ files: [file] });
+}
+
+export function isMobileDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+export function saveFlyerForManualShare(blob: Blob, fileName: string) {
+  downloadBlob(blob, fileName);
+  if (!isMobileDevice()) openWhatsAppWeb();
+}
+
+export async function shareFlyer(blob: Blob, fileName: string): Promise<ShareFlyerResult> {
+  const file = buildShareFile(blob, fileName);
+
+  if (canShareFiles(file)) {
+    try {
+      await shareFlyerFile(file);
+      return 'shared';
+    } catch (error) {
+      if ((error as DOMException).name === 'AbortError') throw error;
     }
   }
 
-  downloadBlob(blob, fileName);
-  window.open('https://wa.me/', '_blank', 'noopener,noreferrer');
-  return 'fallback';
+  saveFlyerForManualShare(blob, fileName);
+  return 'saved';
+}
+
+export function openWhatsAppWeb() {
+  window.open('https://web.whatsapp.com/', '_blank', 'noopener,noreferrer');
 }

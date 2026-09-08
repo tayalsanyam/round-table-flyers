@@ -7,8 +7,8 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { originals, matchesLogo, logoScope, type Logo } from '@/lib/catalog';
 import { compose, loadImage, defaultLogoLayout, activityTags, type BandPlacement, type Design, type Layout } from '@/lib/composite';
-import { canvasToJpegBlob, downloadBlob, flyerExportName } from '@/lib/export-flyer';
-import { shareFlyerOnWhatsApp } from '@/lib/share-flyer';
+import { buildShareFile, canvasToJpegBlob, downloadBlob, flyerExportName } from '@/lib/export-flyer';
+import { canShareFiles, isMobileDevice, saveFlyerForManualShare, shareFlyerFile } from '@/lib/share-flyer';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
@@ -55,6 +55,7 @@ export default function Studio() {
   const draggingRef = useRef(false);
   const hasRendered = useRef(false);
   const composeFrame = useRef(0);
+  const exportBlobRef = useRef<{ blob: Blob; name: string } | null>(null);
 
   const chosen = logos.filter(l => selected.includes(l.id));
 
@@ -126,16 +127,28 @@ export default function Studio() {
           setPreviewCanvas(target);
           setReady(true);
           hasRendered.current = true;
+          void canvasToJpegBlob(target).then(blob => {
+            exportBlobRef.current = { blob, name: flyerExportName(fileName) };
+          }).catch(() => {
+            exportBlobRef.current = null;
+          });
         })
         .catch(e => {
           if (id === renderId.current) setRenderError(e.message);
         });
     });
     return () => cancelAnimationFrame(composeFrame.current);
-  }, [flyer, chosen, design]);
+  }, [flyer, chosen, design, fileName]);
+
+  function pickFlyer(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    void upload(file);
+  }
 
   async function upload(file?: File) {
     if (!file) return;
+    exportBlobRef.current = null;
     const id = ++uploadId.current;
     try {
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 20_000_000) {
@@ -187,18 +200,38 @@ export default function Studio() {
     }
   }
 
-  async function shareWhatsApp() {
-    if (!ready || !canvas.current) return;
-    setExporting(true);
+  function shareWhatsApp() {
+    if (!ready) return;
+    const cached = exportBlobRef.current;
+    if (!cached) {
+      toast.error('Preview is still preparing. Try again in a moment.');
+      return;
+    }
+
+    const file = buildShareFile(cached.blob, cached.name);
+    if (canShareFiles(file)) {
+      shareFlyerFile(file)
+        .then(() => toast.success('Choose WhatsApp in the share menu to send your flyer.'))
+        .catch(error => {
+          if ((error as DOMException).name === 'AbortError') return;
+          void finishShareFallback(cached.blob, cached.name, (error as Error).message);
+        });
+      return;
+    }
+
+    void finishShareFallback(cached.blob, cached.name);
+  }
+
+  function finishShareFallback(blob: Blob, name: string, shareError?: string) {
     try {
-      const { blob, name } = await exportFlyer();
-      const result = await shareFlyerOnWhatsApp(blob, name);
-      if (result === 'shared') toast.success('Choose WhatsApp in the share menu to send your flyer.');
-      else toast.info('Your flyer was saved — attach the JPEG in WhatsApp.');
+      saveFlyerForManualShare(blob, name);
+      if (isMobileDevice()) {
+        toast.info('Flyer saved — open WhatsApp, pick a chat, then attach the JPEG from your files or photos.');
+      } else {
+        toast.info('Flyer saved — attach the JPEG in WhatsApp Web.');
+      }
     } catch (e) {
-      if ((e as DOMException).name !== 'AbortError') toast.error((e as Error).message);
-    } finally {
-      setExporting(false);
+      toast.error(shareError || (e as Error).message);
     }
   }
 
@@ -220,12 +253,12 @@ export default function Studio() {
           <aside className="controls">
             <section className="panel">
               <h2><span className="step">1</span> Add your flyer</h2>
-              <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Upload flyer" onChange={e => upload(e.target.files?.[0])} />
-              <button className="upload" onClick={() => fileInput.current?.click()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); upload(e.dataTransfer.files[0]); }}>
+              <input id="flyer-upload" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Upload flyer" onChange={pickFlyer} />
+              <label htmlFor="flyer-upload" className="upload" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); void upload(e.dataTransfer.files[0]); }}>
                 <Upload size={23} />
                 <strong>{flyer ? 'Change flyer' : 'Choose or drop a flyer'}</strong>
                 <span>{fileName || 'PNG, JPG or WebP · up to 20 MB'}</span>
-              </button>
+              </label>
               <button className="text-link" onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(prompt);
@@ -315,7 +348,7 @@ export default function Studio() {
                   <WhatsAppIcon size={18} />{exporting ? 'Preparing JPEG…' : 'Share on WhatsApp'}
                 </button>
               </div>
-              <p className="hint">On your phone, Share opens WhatsApp with the finished flyer attached. On desktop, we save the JPEG and open WhatsApp Web so you can attach it.</p>
+              <p className="hint">Opens your phone&apos;s share menu — pick WhatsApp, then send the flyer. On desktop we save the JPEG and open WhatsApp Web.</p>
             </section>
           </aside>
 
@@ -337,7 +370,7 @@ export default function Studio() {
                   <div className="empty-icon"><ImageIcon size={35} /></div>
                   <h2>Ready for your flyer</h2>
                   <p>Upload your design to see the final composition.</p>
-                  <button className="secondary" onClick={() => fileInput.current?.click()}><Plus size={17} /> Choose flyer</button>
+                  <label htmlFor="flyer-upload" className="secondary choose-flyer"><Plus size={17} /> Choose flyer</label>
                   <div className="originals-preview">{originals.map(l => <img key={l.id} src={l.url} alt={l.name} />)}</div>
                   <small>Your two official logos are selected to begin.</small>
                 </div>

@@ -3,6 +3,10 @@ export function flyerExportName(fileName: string) {
   return `${base}-area18.jpg`;
 }
 
+export function buildShareFile(blob: Blob, fileName: string) {
+  return new File([blob], fileName, { type: 'image/jpeg' });
+}
+
 export function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
