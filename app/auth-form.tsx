@@ -18,10 +18,14 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    if (new URLSearchParams(location.search).get('error') === 'expired') {
+    const params = new URLSearchParams(location.search);
+    if (params.get('error') === 'expired') {
       setError('This email link has expired or was already used. Sign in or request a new link.');
     }
-  }, []);
+    if (mode === 'login' && params.get('reset') === '1') {
+      setMessage('Your password was updated. Sign in with your new password.');
+    }
+  }, [mode]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,16 +60,19 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
         if (error) throw error;
         location.assign(safeNext(new URLSearchParams(location.search).get('next')));
       } else if (mode === 'forgot') {
-        const { error } = await s.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/auth/confirm' });
+        const next = encodeURIComponent('/reset-password');
+        const { error } = await s.auth.resetPasswordForEmail(email, {
+          redirectTo: `${location.origin}/auth/callback?next=${next}`,
+        });
         if (error) throw error;
         setMessage('If an account exists for this email, a password reset link will arrive shortly.');
       } else {
-        const { data: { user } } = await s.auth.getUser();
-        if (!user) throw new Error('Open the password reset link from your email first.');
+        const { data: { session } } = await s.auth.getSession();
+        if (!session) throw new Error('Open the password reset link from your email first.');
         const { error } = await s.auth.updateUser({ password });
         if (error) throw error;
         await s.auth.signOut();
-        location.assign('/login');
+        location.assign('/login?reset=1');
       }
     } catch (e) {
       setError((e as Error).message);

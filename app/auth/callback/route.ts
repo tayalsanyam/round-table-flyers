@@ -1,3 +1,23 @@
-import { NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase/server';
-export async function GET(request:Request){const url=new URL(request.url),code=url.searchParams.get('code');if(code){const supabase=await supabaseServer();const {error}=await supabase.auth.exchangeCodeForSession(code);if(!error)return NextResponse.redirect(new URL('/',url.origin));}return NextResponse.redirect(new URL('/login?error=expired',url.origin));}
+import { NextResponse, type NextRequest } from 'next/server';
+import { safeNext } from '@/lib/validation';
+import { supabaseRouteClient } from '@/lib/supabase/route';
+
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+
+  if (!code) {
+    return NextResponse.redirect(new URL('/login?error=expired', url.origin));
+  }
+
+  const next = safeNext(url.searchParams.get('next'));
+  const response = NextResponse.redirect(new URL(next, url.origin));
+  const supabase = supabaseRouteClient(request, response);
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (error) {
+    return NextResponse.redirect(new URL('/login?error=expired', url.origin));
+  }
+
+  return response;
+}

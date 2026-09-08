@@ -48,6 +48,8 @@ Allow these exact redirect URLs for each intended origin:
 - `https://flyers.example.org/auth/callback`
 - `https://flyers.example.org/auth/confirm`
 
+The password reset email may use either the PKCE callback (`/auth/callback?next=/reset-password`) or the token-hash confirm route below. Both must be allowed.
+
 For local development also allow `http://localhost:3000/auth/callback` and `http://localhost:3000/auth/confirm`. Use a separate Supabase project for untrusted preview deployments. Do not use a broad wildcard for arbitrary third-party domains.
 
 Set the **Confirm signup** email link to:
