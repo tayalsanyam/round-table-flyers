@@ -1,6 +1,6 @@
 'use client';
 import { useEffect,useRef,useState } from 'react';
-import { Trash2,RefreshCw,LockKeyhole,ShieldCheck,Upload,Eraser,Undo2 } from 'lucide-react';
+import { Trash2,RefreshCw,LockKeyhole,ShieldCheck,Upload,Eraser,Undo2,Download } from 'lucide-react';
 import { AlertDialog,AlertDialogContent,AlertDialogHeader,AlertDialogTitle,AlertDialogDescription,AlertDialogFooter,AlertDialogCancel,AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ import AppHeader from './app-header';
 import Pick from './picker';
 import ActivityTagAdmin from './activity-tag-admin';
 import { fallbackActivityTags, type ActivityTag } from '@/lib/tags';
+import { downloadLogoAsset } from '@/lib/download-logo';
 
 export default function LogoCollection(){
   const [areaFilter,setAreaFilter]=useState('All');
@@ -37,6 +38,7 @@ export default function LogoCollection(){
   const [canUndoLogo,setCanUndoLogo]=useState(false);
   const [saving,setSaving]=useState(false);
   const [deleting,setDeleting]=useState<Logo|null>(null);
+  const [downloadingId,setDownloadingId]=useState('');
   const [activityTags,setActivityTags]=useState<ActivityTag[]>(fallbackActivityTags());
   const logoInput=useRef<HTMLInputElement>(null);
 
@@ -174,6 +176,18 @@ export default function LogoCollection(){
     }
   }
 
+  async function downloadLogo(logo: Logo) {
+    setDownloadingId(logo.id);
+    try {
+      await downloadLogoAsset(logo);
+      toast.success(`${logo.name} downloaded.`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDownloadingId('');
+    }
+  }
+
   async function deleteLogo(){
     if(!deleting)return;
     const item=deleting;
@@ -257,14 +271,14 @@ export default function LogoCollection(){
         <section className="panel collection">
           <div className="section-line">
             <h2>{visible.length} logo{visible.length===1?'':'s'}</h2>
-            <span className="seal"><ShieldCheck size={16}/> {admin?'Admin can delete':'Member access'}</span>
+            <span className="seal"><ShieldCheck size={16}/> {admin?'Admin can delete':signedIn?'Download originals':'Member access'}</span>
           </div>
           <div className="filter-grid collection-filters">
             <Pick label="Filter by area" value={areaFilter} onChange={setAreaFilter} items={[['All','All areas'],...Array.from({length:18},(_,i)=>[String(i+1),'Area '+(i+1)])]}/>
             <Pick label="Filter by round table" value={rtFilter} onChange={setRtFilter} items={[['All','All RTs'],...Array.from({length:400},(_,i)=>[String(i+1),'RT '+(i+1)])]}/>
           </div>
           <Pick label="Filter logos" value={typeFilter} onChange={setTypeFilter} items={['All','Official','Area','Table'].map(x=>[x,x==='All'?'All logo types':x+' logos'])}/>
-          <p className="hint">Chairman themes appear when you pick a specific RT. Each row shows the category plus Area and RT when they apply.</p>
+          <p className="hint">Chairman themes appear when you pick a specific RT. Signed-in members can download uploaded logos from each row.</p>
           <div className="logo-list">
           {groups.map(group=><div className="logo-group" key={group.category}>
             <h3>{group.category} logos</h3>
@@ -274,7 +288,10 @@ export default function LogoCollection(){
                 <strong>{l.name}</strong>
                 <small>{logoScope(l)}</small>
               </span>
-              {admin&&<button className="delete" disabled={saving} aria-label={'Delete '+l.name} onClick={()=>setDeleting(l)}><Trash2 size={18}/></button>}
+              <span className="logo-actions">
+                {signedIn&&!l.builtin&&<button type="button" className="download-logo" disabled={saving||downloadingId===l.id} aria-label={'Download '+l.name} onClick={()=>void downloadLogo(l)}><Download size={18}/></button>}
+                {admin&&<button type="button" className="delete" disabled={saving} aria-label={'Delete '+l.name} onClick={()=>setDeleting(l)}><Trash2 size={18}/></button>}
+              </span>
             </div>)}
           </div>)}
           </div>

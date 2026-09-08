@@ -17,6 +17,11 @@ export function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
+export function logoDownloadName(name: string, ext: string) {
+  const safe = name.replace(/[^\w\s().-]+/g, '').trim().replace(/\s+/g, '-') || 'logo';
+  return `${safe}.${ext}`;
+}
+
 export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
