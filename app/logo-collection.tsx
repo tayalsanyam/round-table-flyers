@@ -38,6 +38,11 @@ export default function LogoCollection(){
   const [deleting,setDeleting]=useState<Logo|null>(null);
   const [activityTags,setActivityTags]=useState<ActivityTag[]>(fallbackActivityTags());
   const logoInput=useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (category === 'Area') setName(`Area ${uploadArea}`);
+    else if (category === 'Table') setName('');
+  }, [category, uploadArea]);
   const appliedProfile=useRef(false);
   const logoHistory=useRef<File[]>([]);
   const previewUrl=useRef('');
@@ -205,7 +210,7 @@ export default function LogoCollection(){
           ? <div className="admin-stack">
               <form className="panel add-form" onSubmit={addLogo}>
               <h2><Upload size={20}/> Upload a logo</h2>
-              <p className="hint">Table logos are named RT 1–400. Area logos are named Area 1–18. Chairman and Official logos need a name.</p>
+              <p className="hint">Table logos are named RT 1–400 automatically. Area, Chairman and Official logos need a name.</p>
               <label className="field">Category
                 <Pick label="Logo category" value={category} onChange={setCategory} items={(admin?['Table','Area','Chairman','Official']:['Table','Area','Chairman']).map(x=>[x,x])}/>
               </label>
@@ -215,8 +220,8 @@ export default function LogoCollection(){
               {category==='Table'&&<label className="field">Round Table
                 <Pick label="Logo round table" value={uploadRt} onChange={setUploadRt} items={Array.from({length:400},(_,i)=>[String(i+1),'RT '+(i+1)])}/>
               </label>}
-              {(category==='Chairman'||category==='Official')&&<label className="field">Logo name
-                <input required maxLength={100} placeholder={category==='Official'?'e.g. Round Table India':'e.g. Chairman 2026–27'} value={name} onChange={e=>setName(e.target.value)}/>
+              {category!=='Table'&&<label className="field">Logo name
+                <input required maxLength={100} placeholder={category==='Official'?'e.g. Round Table India':category==='Chairman'?'e.g. Chairman 2026–27':`e.g. Area ${uploadArea} Spring Gala`} value={name} onChange={e=>setName(e.target.value)}/>
               </label>}
               <label className="field">Original image
                 <input ref={logoInput} type="file" required accept="image/png,image/jpeg,image/webp" onChange={e=>setLogoFile(e.target.files?.[0]||null,true)}/>
@@ -253,6 +258,7 @@ export default function LogoCollection(){
           </div>
           <Pick label="Filter logos" value={typeFilter} onChange={setTypeFilter} items={['All','Official','Area','Table','Chairman'].map(x=>[x,x==='All'?'All logo types':x+' logos'])}/>
           <p className="hint">Each row shows the category plus Area and RT when they apply. National / official logos stay visible across areas.</p>
+          <div className="logo-list">
           {groups.map(group=><div className="logo-group" key={group.category}>
             <h3>{group.category} logos</h3>
             {group.items.map(l=><div className="admin-logo" key={l.id}>
@@ -264,6 +270,7 @@ export default function LogoCollection(){
               {admin&&<button className="delete" disabled={saving} aria-label={'Delete '+l.name} onClick={()=>setDeleting(l)}><Trash2 size={18}/></button>}
             </div>)}
           </div>)}
+          </div>
           {!visible.length&&<p className="muted">No logos match these filters yet. Upload one with the form, or widen the Area / RT filters.</p>}
         </section>
       </div>}
