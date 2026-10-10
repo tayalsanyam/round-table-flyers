@@ -13,6 +13,7 @@ import { useRefreshOnVisible } from '@/lib/use-refresh-on-visible';
 import { supabaseBrowser } from '@/lib/supabase/client';
 import AppHeader from './app-header';
 import Pick from './picker';
+import WelcomeGuide from './welcome-guide';
 import ActivityTagAdmin from './activity-tag-admin';
 import { fallbackActivityTags, type ActivityTag } from '@/lib/tags';
 import { downloadLogoAsset } from '@/lib/download-logo';
@@ -211,7 +212,8 @@ export default function LogoCollection(){
 
   return <>
     <Toaster richColors/>
-    <AppHeader signedIn={signedIn} page="collection"/>
+    <AppHeader signedIn={signedIn} admin={admin} page="collection"/>
+    <WelcomeGuide signedIn={signedIn}/>
     <main className="admin-page">
       <div className="intro">
         <div>

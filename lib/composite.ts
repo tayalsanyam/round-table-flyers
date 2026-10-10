@@ -247,8 +247,9 @@ export async function compose(
   logos: Logo[],
   design: Design = { background: '#000000', bandEnabled: true, bandPlacement: 'header', tags: [], textLayers: [], logoLayouts: [] },
 ) {
-  if (!logos.length) throw new Error('Choose at least one logo.');
-  const loaded = await Promise.all(logos.map(l => loadImage(l.url)));
+  const loaded = logos.length
+    ? await Promise.all(logos.map(l => loadImage(l.url)))
+    : [];
   const fontsToLoad = [...new Set(['Modern', ...design.textLayers.map(t => t.font), ...design.tags.map(t => t.font)])].filter(f => !loadedFonts.has(f));
   if (typeof document !== 'undefined' && fontsToLoad.length) {
     await Promise.all(fontsToLoad.map(async f => {
@@ -273,11 +274,11 @@ export async function compose(
   ctx.fillRect(0, 0, w, l.outputHeight);
   ctx.drawImage(flyer, 0, l.flyerY);
 
-  if (bandEnabled) {
+  if (bandEnabled && logos.length) {
     ctx.fillStyle = design.background;
     ctx.fillRect(0, l.bandY, w, l.band);
     drawBandLogos(ctx, w, loaded, logos, l.bandY, l.logoBand, l.rows);
-  } else {
+  } else if (!bandEnabled && logos.length) {
     const layouts = design.logoLayouts.filter(item => logos.some(logo => logo.id === item.id));
     const maxSide = w * 0.18;
     layouts.forEach(item => {

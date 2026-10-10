@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import SiteFooter from './site-footer';
+import NavigationLoader from './navigation-loader';
 import { OG_IMAGE_PATH, SITE_DESCRIPTION, SITE_URL } from '@/lib/site';
 
 const siteTitle = 'Round Table · Flyer Finisher';
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta name="twitter:image" content={ogImageUrl} />
       </head>
       <body>
+        <NavigationLoader />
         {children}
         <SiteFooter />
       </body>

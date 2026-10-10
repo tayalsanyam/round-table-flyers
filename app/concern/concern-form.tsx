@@ -1,23 +1,28 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ISSUE_CATEGORIES } from '@/lib/issues';
+import { fetchCatalog } from '@/lib/fetch-catalog';
 import AppHeader from '../app-header';
 
-const categories = [
-  'Account or login',
-  'Logo upload or collection',
-  'Flyer editor or download',
-  'Privacy or data',
-  'Other',
-];
+const categories = [...ISSUE_CATEGORIES];
 
 export default function ConcernForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [category, setCategory] = useState(categories[0]);
+  const [category, setCategory] = useState<string>(categories[0]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const [admin, setAdmin] = useState(false);
+
+  useEffect(() => {
+    void fetchCatalog().then((catalog) => {
+      setSignedIn(catalog.signedIn);
+      setAdmin(catalog.admin);
+    }).catch(() => undefined);
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -41,7 +46,7 @@ export default function ConcernForm() {
 
   return (
     <>
-      <AppHeader signedIn={false} page="concern" />
+      <AppHeader signedIn={signedIn} admin={admin} page="concern" />
       <main className="concern-page">
         <section className="concern-hero panel">
           <p className="eyebrow">AREA 18 · SUPPORT</p>

@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { ISSUE_CATEGORIES } from '@/lib/issues';
+import { configured } from '@/lib/supabase/server';
+import { supabasePublic } from '@/lib/supabase/public';
 
 type Body = {
   name?: string;
@@ -24,6 +27,21 @@ export async function POST(request: Request) {
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
+    }
+    if (!(ISSUE_CATEGORIES as readonly string[]).includes(category)) {
+      return NextResponse.json({ error: 'Choose a valid topic.' }, { status: 400 });
+    }
+
+    if (configured()) {
+      const supabase = supabasePublic();
+      const { error } = await supabase.from('issues').insert({ name, email, category, message });
+      if (error) {
+        console.error('Issue insert failed', error);
+        if (error.code !== '42P01' && !error.message?.includes('issues')) {
+          return NextResponse.json({ error: 'Could not save your message right now. Please try again or call +91-7009191914.' }, { status: 502 });
+        }
+        // Table not installed yet — still try email so the form keeps working.
+      }
     }
 
     const apiKey = process.env.RESEND_API_KEY;

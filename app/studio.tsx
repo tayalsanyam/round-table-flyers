@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Upload, Download, ShieldCheck, Plus, ImageIcon, Check, Copy, Layers } from 'lucide-react';
+import { Upload, Download, ShieldCheck, Plus, ImageIcon, Check, Copy, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
 import { Toaster } from '@/components/ui/sonner';
@@ -10,14 +10,23 @@ import { compose, loadImage, defaultLogoLayout, activityTags, clearImageCache, t
 import { fetchCatalog } from '@/lib/fetch-catalog';
 import { useRefreshOnVisible } from '@/lib/use-refresh-on-visible';
 import { buildShareFile, canvasToJpegBlob, downloadBlob, flyerExportName } from '@/lib/export-flyer';
-import { canShareFiles, isMobileDevice, saveFlyerForManualShare, shareFlyerFile } from '@/lib/share-flyer';
+import { canShareFlyerNative, copyFlyerImage, isMobileDevice, openWhatsAppWeb, shareFlyerFile } from '@/lib/share-flyer';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
 import WhatsAppIcon from './whatsapp-icon';
 import Pick from './picker';
+import WelcomeGuide from './welcome-guide';
 
 const prompt = 'Create the flyer without organisation logos, emblems or imitation logos. Keep all text and artwork inside the flyer. I will add an official branding strip separately after generation.';
+
+const FLOW_STEPS = [
+  { id: 1, label: 'Upload' },
+  { id: 2, label: 'Logos' },
+  { id: 3, label: 'Tags' },
+  { id: 4, label: 'Text' },
+  { id: 5, label: 'Finish' },
+] as const;
 
 const initialDesign: Design = {
   background: '#000000',
@@ -29,9 +38,11 @@ const initialDesign: Design = {
 };
 
 export default function Studio() {
+  const [step, setStep] = useState(1);
   const [areaFilter, setAreaFilter] = useState('18');
   const [rtFilter, setRtFilter] = useState('All');
   const [signedIn, setSignedIn] = useState(false);
+  const [admin, setAdmin] = useState(false);
   const [design, setDesign] = useState<Design>(initialDesign);
   const [logos, setLogos] = useState<Logo[]>(originals);
   const [selected, setSelected] = useState(['rti', 'area18']);
@@ -83,6 +94,7 @@ export default function Studio() {
         return valid.length ? valid : ['rti', 'area18'].filter(id => d.logos.some(logo => logo.id === id));
       });
       setSignedIn(d.signedIn);
+      setAdmin(d.admin);
       setConfigured(d.configured);
       if (d.profile && !appliedProfile.current) {
         setAreaFilter(String(d.profile.area));
@@ -131,6 +143,7 @@ export default function Studio() {
           setDimensions(`${scratch.width} × ${result.outputHeight} px`);
           setLayout(result);
           setPreviewCanvas(target);
+          setRenderError('');
           setReady(true);
           hasRendered.current = true;
           void canvasToJpegBlob(target).then(blob => {
@@ -206,45 +219,50 @@ export default function Studio() {
     }
   }
 
-  function shareWhatsApp() {
-    if (!ready) return;
-    const cached = exportBlobRef.current;
-    if (!cached) {
-      toast.error('Preview is still preparing. Try again in a moment.');
-      return;
-    }
-
-    const file = buildShareFile(cached.blob, cached.name);
-    if (canShareFiles(file)) {
-      shareFlyerFile(file)
-        .then(() => toast.success('Choose WhatsApp in the share menu to send your flyer.'))
-        .catch(error => {
-          if ((error as DOMException).name === 'AbortError') return;
-          void finishShareFallback(cached.blob, cached.name, (error as Error).message);
-        });
-      return;
-    }
-
-    void finishShareFallback(cached.blob, cached.name);
-  }
-
-  function finishShareFallback(blob: Blob, name: string, shareError?: string) {
+  async function shareWhatsApp() {
+    if (!ready || !canvas.current) return;
+    setExporting(true);
     try {
-      saveFlyerForManualShare(blob, name);
-      if (isMobileDevice()) {
-        toast.info('Flyer saved — open WhatsApp, pick a chat, then attach the JPEG from your files or photos.');
-      } else {
-        toast.info('Flyer saved — attach the JPEG in WhatsApp Web.');
+      const cached = exportBlobRef.current;
+      const { blob, name } = cached ?? await exportFlyer();
+      const file = buildShareFile(blob, name);
+
+      if (canShareFlyerNative(file)) {
+        try {
+          await shareFlyerFile(file);
+          toast.success('Pick WhatsApp in the share sheet to send your flyer.');
+          return;
+        } catch (error) {
+          if ((error as DOMException).name === 'AbortError') return;
+        }
       }
+
+      downloadBlob(blob, file.name);
+
+      if (!isMobileDevice() && canvas.current) {
+        const copied = await copyFlyerImage(canvas.current);
+        openWhatsAppWeb();
+        toast.info(
+          copied
+            ? 'Flyer downloaded and copied — open a chat in WhatsApp Web and paste (Ctrl/Cmd+V).'
+            : 'Flyer downloaded — open a chat in WhatsApp Web and attach the JPEG.',
+        );
+        return;
+      }
+
+      toast.info('Flyer saved — open WhatsApp, pick a chat, then attach the JPEG from Files or Photos.');
     } catch (e) {
-      toast.error(shareError || (e as Error).message);
+      toast.error((e as Error).message);
+    } finally {
+      setExporting(false);
     }
   }
 
   return (
     <>
       <Toaster richColors />
-      <AppHeader signedIn={signedIn} page="studio" />
+      <AppHeader signedIn={signedIn} admin={admin} page="studio" />
+      <WelcomeGuide signedIn={signedIn} />
       <main className="workspace">
         <section className="intro">
           <div>
@@ -256,106 +274,153 @@ export default function Studio() {
         </section>
 
         <div className="studio-grid">
-          <aside className="controls">
-            <section className="panel">
-              <h2><span className="step">1</span> Add your flyer</h2>
-              <input id="flyer-upload" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Upload flyer" onChange={pickFlyer} />
-              <label htmlFor="flyer-upload" className="upload" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); void upload(e.dataTransfer.files[0]); }}>
-                <Upload size={23} />
-                <strong>{flyer ? 'Change flyer' : 'Choose or drop a flyer'}</strong>
-                <span>{fileName || 'PNG, JPG or WebP · up to 20 MB'}</span>
-              </label>
-              <button className="text-link" onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(prompt);
-                  toast.success('Prompt instruction copied.');
-                } catch {
-                  toast.error('Copy this instruction: ' + prompt);
-                }
-              }}>
-                <Copy size={14} /> Copy instruction for your AI app
-              </button>
-            </section>
-
-            <section className="panel">
-              <div className="section-line">
-                <h2><span className="step">2</span> Choose logos</h2>
-                <span className="count">{chosen.length} selected</span>
-              </div>
-              <a className="secondary collection-cta" href="/collection">{signedIn ? 'Upload and manage logos' : 'Sign in to upload logos'}</a>
-              <p className="hint">Logos with black or white boxes? Open Logo collection, upload the file, and use Remove background before saving.</p>
-              <div className="selected-logos" aria-label="Logos selected for export">
-                <small>Selected for export</small>
-                <div>{chosen.map(l => <button key={l.id} onClick={() => toggle(l.id)} aria-label={`Remove ${l.name} from flyer`}>{l.name} ×</button>)}</div>
-              </div>
-              <div className="filter-grid">
-                <Pick label="Filter by area" value={areaFilter} onChange={setAreaFilter} items={[['All', 'All areas'], ...Array.from({ length: 18 }, (_, i) => [String(i + 1), `Area ${i + 1}`])]} />
-                <Pick label="Filter by round table" value={rtFilter} onChange={setRtFilter} items={[['All', 'All RTs'], ...Array.from({ length: 400 }, (_, i) => [String(i + 1), `RT ${i + 1}`])]} />
-              </div>
-              <Pick label="Filter logos" value={filter} onChange={setFilter} items={['All', 'Official', 'Area', 'Table'].map(x => [x, x === 'All' ? 'All logo types' : `${x} logos`])} />
-              {!configured && <p className="error">Account services are not connected yet. See SETUP.md in the project package.</p>}
-              {loading && <p role="status" className="muted">Loading the shared collection…</p>}
-              {catalogError && <div className="error" role="alert">{catalogError}<button onClick={refresh}>Try again</button></div>}
-              <div className="logo-list">
-                {logos.filter(l => matchesLogo(l, areaFilter, rtFilter, filter)).map(l => (
-                  <label className={`logo-option ${selected.includes(l.id) ? 'selected' : ''}`} key={l.id}>
-                    <span className="logo-thumb"><img src={l.url} alt="" key={l.url} /></span>
-                    <span className="logo-name"><strong>{l.name}</strong><small>{logoScope(l)}</small></span>
-                    <Checkbox aria-label={`Select ${l.name}`} checked={selected.includes(l.id)} onCheckedChange={() => toggle(l.id)} />
-                  </label>
+          <aside className="controls studio-flow">
+            <div className="panel flow-steps-panel">
+              <nav className="flow-steps" aria-label="Flyer steps">
+                {FLOW_STEPS.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`flow-step${step === item.id ? ' active' : ''}${step > item.id ? ' done' : ''}`}
+                    onClick={() => setStep(item.id)}
+                    aria-current={step === item.id ? 'step' : undefined}
+                  >
+                    <span className="flow-num">{item.id}</span>
+                    <span className="flow-step-label">{item.label}</span>
+                  </button>
                 ))}
-              </div>
-              {!loading && !logos.filter(l => matchesLogo(l, areaFilter, rtFilter, filter)).length && (
-                <p className="muted">No logos here yet. Open Logo collection to upload one for this Area or RT.</p>
-              )}
-            </section>
+              </nav>
+            </div>
 
-            <DesignControls design={design} setDesign={setDesign} activityTagOptions={activityTagOptions} />
+            <input id="flyer-upload" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" aria-label="Upload flyer" onChange={pickFlyer} />
 
-            <section className="panel">
-              <h2><span className="step">5</span> Logo band, download & share</h2>
-              <label className="field band-toggle">
-                <span>Add black logo band</span>
-                <Checkbox checked={design.bandEnabled} onCheckedChange={checked => setDesign({ ...design, bandEnabled: !!checked })} />
-              </label>
-              {!design.bandEnabled && chosen.length > 0 && (
-                <div className="logo-scale-list">
-                  {design.logoLayouts.filter(item => selected.includes(item.id)).map(item => {
-                    const logo = chosen.find(l => l.id === item.id);
-                    return (
-                      <label key={item.id} className="range-field">
-                        <span>{logo?.name ?? 'Logo'} size<small>{Math.round(item.scale * 100)}%</small></span>
-                        <Slider aria-label={`${logo?.name ?? 'Logo'} size`} value={[Math.round(item.scale * 100)]} min={40} max={180} step={5} onValueChange={v => setDesign({
-                          ...design,
-                          logoLayouts: design.logoLayouts.map(layoutItem => layoutItem.id === item.id ? { ...layoutItem, scale: v[0] / 100 } : layoutItem),
-                        })} />
-                      </label>
-                    );
-                  })}
+            {step === 1 && (
+              <section className="panel">
+                <h2><span className="step">1</span> Add your flyer</h2>
+                <label htmlFor="flyer-upload" className="upload" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); void upload(e.dataTransfer.files[0]); }}>
+                  <Upload size={23} />
+                  <strong>{flyer ? 'Change flyer' : 'Choose or drop a flyer'}</strong>
+                  <span>{fileName || 'PNG, JPG or WebP · up to 20 MB'}</span>
+                </label>
+                <button className="text-link" onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(prompt);
+                    toast.success('Prompt instruction copied.');
+                  } catch {
+                    toast.error('Copy this instruction: ' + prompt);
+                  }
+                }}>
+                  <Copy size={14} /> Copy instruction for your AI app
+                </button>
+              </section>
+            )}
+
+            {step === 2 && (
+              <section className="panel">
+                <div className="section-line">
+                  <h2><span className="step">2</span> Choose logos</h2>
+                  <span className="count">{chosen.length} selected</span>
                 </div>
-              )}
-              {design.bandEnabled && (
-                <>
-                  <Pick label="Band placement" value={design.bandPlacement} onChange={v => setDesign({ ...design, bandPlacement: v as BandPlacement })} items={[
-                    ['header', 'Add a header · recommended'],
-                    ['footer', 'Add a footer'],
-                    ['reserved-top', 'Use reserved space at top'],
-                    ['reserved-bottom', 'Use reserved space at bottom'],
-                  ]} />
-                  <label className="colour-field strip-colour">Band colour<input type="color" value={design.background} onChange={e => setDesign({ ...design, background: e.target.value })} /></label>
-                </>
-              )}
-              <p className="hint">Transparent PNG logos blend best on coloured bands. Remove solid backgrounds when uploading in Logo collection.</p>
-              <div className="export-actions">
-                <button className="primary download" disabled={!ready || exporting || loading || !!catalogError} onClick={download}>
-                  <Download size={18} />{exporting ? 'Preparing JPEG…' : 'Download JPEG'}
+                <a className="secondary collection-cta" href="/collection">{signedIn ? 'Upload and manage logos' : 'Sign in to upload logos'}</a>
+                <p className="hint">Logos with black or white boxes? Open Logo collection, upload the file, and use Remove background before saving.</p>
+                <div className="selected-logos" aria-label="Logos selected for export">
+                  <small>Selected for export</small>
+                  <div>{chosen.map(l => <button key={l.id} onClick={() => toggle(l.id)} aria-label={`Remove ${l.name} from flyer`}>{l.name} ×</button>)}</div>
+                </div>
+                <div className="filter-grid">
+                  <Pick label="Filter by area" value={areaFilter} onChange={setAreaFilter} items={[['All', 'All areas'], ...Array.from({ length: 18 }, (_, i) => [String(i + 1), `Area ${i + 1}`])]} />
+                  <Pick label="Filter by round table" value={rtFilter} onChange={setRtFilter} items={[['All', 'All RTs'], ...Array.from({ length: 400 }, (_, i) => [String(i + 1), `RT ${i + 1}`])]} />
+                </div>
+                <Pick label="Filter logos" value={filter} onChange={setFilter} items={['All', 'Official', 'Area', 'Table'].map(x => [x, x === 'All' ? 'All logo types' : `${x} logos`])} />
+                {!configured && <p className="error">Account services are not connected yet. See SETUP.md in the project package.</p>}
+                {loading && <p role="status" className="muted">Loading the shared collection…</p>}
+                {catalogError && <div className="error" role="alert">{catalogError}<button onClick={refresh}>Try again</button></div>}
+                <div className="logo-list">
+                  {logos.filter(l => matchesLogo(l, areaFilter, rtFilter, filter)).map(l => (
+                    <label className={`logo-option ${selected.includes(l.id) ? 'selected' : ''}`} key={l.id}>
+                      <span className="logo-thumb"><img src={l.url} alt="" key={l.url} /></span>
+                      <span className="logo-name"><strong>{l.name}</strong><small>{logoScope(l)}</small></span>
+                      <Checkbox aria-label={`Select ${l.name}`} checked={selected.includes(l.id)} onCheckedChange={() => toggle(l.id)} />
+                    </label>
+                  ))}
+                </div>
+                {!loading && !logos.filter(l => matchesLogo(l, areaFilter, rtFilter, filter)).length && (
+                  <p className="muted">No logos here yet. Open Logo collection to upload one for this Area or RT.</p>
+                )}
+                <div className="logo-design-controls">
+                  <label className="field band-toggle">
+                    <span>Add black logo band</span>
+                    <Checkbox checked={design.bandEnabled} onCheckedChange={checked => setDesign({ ...design, bandEnabled: !!checked })} />
+                  </label>
+                  {design.bandEnabled ? (
+                    <>
+                      <Pick label="Band placement" value={design.bandPlacement} onChange={v => setDesign({ ...design, bandPlacement: v as BandPlacement })} items={[
+                        ['header', 'Add a header · recommended'],
+                        ['footer', 'Add a footer'],
+                        ['reserved-top', 'Use reserved space at top'],
+                        ['reserved-bottom', 'Use reserved space at bottom'],
+                      ]} />
+                      <label className="colour-field strip-colour">Band colour<input type="color" value={design.background} onChange={e => setDesign({ ...design, background: e.target.value })} /></label>
+                      <p className="hint">Transparent PNG logos blend best on coloured bands. Remove solid backgrounds when uploading in Logo collection.</p>
+                    </>
+                  ) : chosen.length > 0 ? (
+                    <div className="logo-scale-list">
+                      {design.logoLayouts.filter(item => selected.includes(item.id)).map(item => {
+                        const logo = chosen.find(l => l.id === item.id);
+                        return (
+                          <label key={item.id} className="range-field">
+                            <span>{logo?.name ?? 'Logo'} size<small>{Math.round(item.scale * 100)}%</small></span>
+                            <Slider aria-label={`${logo?.name ?? 'Logo'} size`} value={[Math.round(item.scale * 100)]} min={40} max={300} step={5} onValueChange={v => setDesign({
+                              ...design,
+                              logoLayouts: design.logoLayouts.map(layoutItem => layoutItem.id === item.id ? { ...layoutItem, scale: v[0] / 100 } : layoutItem),
+                            })} />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            )}
+
+            {step === 3 && (
+              <DesignControls design={design} setDesign={setDesign} activityTagOptions={activityTagOptions} section="tags" />
+            )}
+
+            {step === 4 && (
+              <DesignControls design={design} setDesign={setDesign} activityTagOptions={activityTagOptions} section="text" />
+            )}
+
+            {step === 5 && (
+              <section className="panel">
+                <h2><span className="step">5</span> Download & share</h2>
+                <p className="hint">Your flyer is ready. Download a JPEG or send it to WhatsApp.</p>
+                <div className="export-actions">
+                  <button className="primary download" disabled={!ready || exporting || loading || !!catalogError} onClick={download}>
+                    <Download size={18} />{exporting ? 'Preparing JPEG…' : 'Download JPEG'}
+                  </button>
+                  <button type="button" className="whatsapp" disabled={!ready || exporting || loading || !!catalogError} onClick={() => void shareWhatsApp()}>
+                    <WhatsAppIcon size={18} />{exporting ? 'Preparing JPEG…' : 'Share on WhatsApp'}
+                  </button>
+                </div>
+                <p className="hint">On your phone, pick WhatsApp from the share sheet. On desktop we download the JPEG, copy it when possible, and open WhatsApp Web so you can paste or attach it.</p>
+              </section>
+            )}
+
+            <div className="flow-nav">
+              <button type="button" className="secondary" disabled={step <= 1} onClick={() => setStep(current => Math.max(1, current - 1))}>
+                <ChevronLeft size={17} /> Back
+              </button>
+              {step < 5 ? (
+                <button type="button" className="primary" onClick={() => setStep(current => Math.min(5, current + 1))}>
+                  Continue <ChevronRight size={17} />
                 </button>
-                <button className="whatsapp" disabled={!ready || exporting || loading || !!catalogError} onClick={shareWhatsApp}>
-                  <WhatsAppIcon size={18} />{exporting ? 'Preparing JPEG…' : 'Share on WhatsApp'}
+              ) : (
+                <button type="button" className="secondary" onClick={() => setStep(1)}>
+                  Back to step 1
                 </button>
-              </div>
-              <p className="hint">Opens your phone&apos;s share menu — pick WhatsApp, then send the flyer. On desktop we save the JPEG and open WhatsApp Web.</p>
-            </section>
+              )}
+            </div>
           </aside>
 
           <section className="preview-panel">
@@ -375,10 +440,10 @@ export default function Studio() {
                 <div className="empty-preview">
                   <div className="empty-icon"><ImageIcon size={35} /></div>
                   <h2>Ready for your flyer</h2>
-                  <p>Upload your design to see the final composition.</p>
+                  <p>Upload your design first — add logos in step 2.</p>
                   <label htmlFor="flyer-upload" className="secondary choose-flyer"><Plus size={17} /> Choose flyer</label>
                   <div className="originals-preview">{originals.map(l => <img key={l.id} src={l.url} alt={l.name} />)}</div>
-                  <small>Your two official logos are selected to begin.</small>
+                  <small>Official logos are ready when you need them.</small>
                 </div>
               ) : (
                 <div className="preview-canvas-wrap">

@@ -6,6 +6,12 @@ import { supabaseBrowser } from '@/lib/supabase/client';
 import { safeNext } from '@/lib/validation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
+function isEmailNotConfirmed(error: { code?: string; message?: string }) {
+  const code = (error.code ?? '').toLowerCase();
+  const message = (error.message ?? '').toLowerCase();
+  return code === 'email_not_confirmed' || message.includes('email not confirmed');
+}
+
 export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot' | 'reset' }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,12 +26,25 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('error') === 'expired') {
-      setError('This email link has expired or was already used. Sign in or request a new link.');
+      setError('This email link has expired or was already used. Enter your email below and resend a new confirmation link.');
     }
     if (mode === 'login' && params.get('reset') === '1') {
       setMessage('Your password was updated. Sign in with your new password.');
     }
   }, [mode]);
+
+  async function resendConfirmation(s = supabaseBrowser()) {
+    const trimmed = email.trim();
+    if (!trimmed) throw new Error('Enter your email to resend the confirmation link.');
+    const { error } = await s.auth.resend({
+      type: 'signup',
+      email: trimmed,
+      options: { emailRedirectTo: location.origin + '/auth/callback' },
+    });
+    if (error) throw error;
+    setError('');
+    setMessage('We sent a new confirmation link to your email. Open it, then sign in.');
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +76,13 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
         setMessage('Check your inbox to confirm your email, then sign in. If you already have an account, use the login page.');
       } else if (mode === 'login') {
         const { error } = await s.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          if (isEmailNotConfirmed(error)) {
+            await resendConfirmation(s);
+            return;
+          }
+          throw error;
+        }
         location.assign(safeNext(new URLSearchParams(location.search).get('next')));
       } else if (mode === 'forgot') {
         const next = encodeURIComponent('/reset-password');
@@ -74,6 +99,19 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
         await s.auth.signOut();
         location.assign('/login?reset=1');
       }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onResendConfirmation() {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await resendConfirmation();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -179,6 +217,9 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
         <div className="auth-links">
           {mode === 'login' ? (
             <>
+              <button type="button" className="auth-link-button" disabled={busy} onClick={() => void onResendConfirmation()}>
+                Resend confirmation email
+              </button>
               <a href="/signup">Create an account</a>
               <a href="/forgot-password">Forgot password?</a>
             </>

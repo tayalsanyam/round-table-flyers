@@ -105,3 +105,6 @@ create policy activity_tag_admin_update on public.activity_tags for update to au
 insert into public.activity_tags (label, sort_order) values
  ('LAPD Experience', 1),('Go Go Green', 2),('Community Service Activity', 3),('Business Meet', 4),('Socials', 5),
  ('Fellowship', 6),('JAFFA', 7),('AEX', 8),('NEX', 9),('MTM', 10);
+
+-- Admin member list/edit RPCs: run supabase/admin-members.sql (safe to run on an existing project).
+-- Support inbox table/policies: run supabase/issues-inbox.sql (safe to run on an existing project).
