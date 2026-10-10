@@ -1,9 +1,9 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FolderOpen, ArrowLeft, MessageCircleWarning, Layers, Users, Inbox } from 'lucide-react';
+import { FolderOpen, ArrowLeft, MessageCircleWarning, Layers, Users, Inbox, Sparkles, FilePenLine } from 'lucide-react';
 
-type Page = 'studio' | 'collection' | 'concern' | 'members' | 'inbox';
+type Page = 'studio' | 'collection' | 'concern' | 'members' | 'inbox' | 'generate' | 'prompts';
 
 export default function AppHeader({ signedIn, page, admin = false }: { signedIn: boolean; page: Page; admin?: boolean }) {
   const next =
@@ -11,7 +11,9 @@ export default function AppHeader({ signedIn, page, admin = false }: { signedIn:
       : page === 'concern' ? '/concern'
         : page === 'members' ? '/members'
           : page === 'inbox' ? '/inbox'
-            : '/';
+            : page === 'generate' ? '/generate'
+              : page === 'prompts' ? '/prompts'
+                : '/';
 
   return (
     <header className="topbar">
@@ -26,11 +28,17 @@ export default function AppHeader({ signedIn, page, admin = false }: { signedIn:
       <div className="topbar-end">
         <nav className="topbar-nav" aria-label="Main">
           {page !== 'studio' && <Link className="quiet" href="/"><Layers size={17} /> Studio</Link>}
+          {page !== 'generate' && (
+            <Link className="quiet" href="/generate">
+              <Sparkles size={17} /> Generate <span className="beta-badge">Beta</span>
+            </Link>
+          )}
           {page !== 'collection' && <Link className="quiet" href="/collection"><FolderOpen size={17} /> Logo collection</Link>}
           {page !== 'concern' && <Link className="quiet" href="/concern"><MessageCircleWarning size={17} /> Raise a concern</Link>}
           {admin && page !== 'members' && <Link className="quiet" href="/members"><Users size={17} /> Members</Link>}
           {admin && page !== 'inbox' && <Link className="quiet" href="/inbox"><Inbox size={17} /> Inbox</Link>}
-          {(page === 'collection' || page === 'concern' || page === 'members' || page === 'inbox') && (
+          {admin && page !== 'prompts' && <Link className="quiet" href="/prompts"><FilePenLine size={17} /> Prompts</Link>}
+          {(page === 'collection' || page === 'concern' || page === 'members' || page === 'inbox' || page === 'generate' || page === 'prompts') && (
             <Link className="quiet" href="/"><ArrowLeft size={17} /> Back to studio</Link>
           )}
         </nav>

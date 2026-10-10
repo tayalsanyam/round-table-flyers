@@ -11,6 +11,7 @@ import { fetchCatalog } from '@/lib/fetch-catalog';
 import { useRefreshOnVisible } from '@/lib/use-refresh-on-visible';
 import { buildShareFile, canvasToJpegBlob, downloadBlob, flyerExportName } from '@/lib/export-flyer';
 import { canShareFlyerNative, copyFlyerImage, isMobileDevice, openWhatsAppWeb, shareFlyerFile } from '@/lib/share-flyer';
+import { clearPendingFlyer, peekPendingFlyer } from '@/lib/pending-flyer';
 import DesignControls from './design-controls';
 import PreviewEditor from './preview-editor';
 import AppHeader from './app-header';
@@ -110,6 +111,37 @@ export default function Studio() {
   useRefreshOnVisible(() => { void refresh(); });
 
   useEffect(() => { void refresh(); void refreshTags(); }, []);
+
+  useEffect(() => {
+    const pending = peekPendingFlyer();
+    if (!pending) {
+      if (typeof window !== 'undefined') {
+        const stepParam = new URLSearchParams(window.location.search).get('step');
+        if (stepParam === '2') setStep(2);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const image = await loadImage(pending.dataUrl);
+        if (cancelled) return;
+        clearPendingFlyer();
+        setFlyer(image);
+        setFileName(pending.name);
+        setStep(2);
+        toast.success('Artwork loaded — choose logos next.');
+      } catch {
+        if (!cancelled) {
+          clearPendingFlyer();
+          toast.error('Could not load the generated artwork. Upload it manually.');
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     setDesign(current => ({

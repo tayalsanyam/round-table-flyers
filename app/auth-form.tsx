@@ -35,7 +35,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
 
   async function resendConfirmation(s = supabaseBrowser()) {
     const trimmed = email.trim();
-    if (!trimmed) throw new Error('Enter your email to resend the confirmation link.');
+    if (!trimmed) throw new Error('Enter the email address to resend the confirmation link to.');
     const { error } = await s.auth.resend({
       type: 'signup',
       email: trimmed,
@@ -43,7 +43,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
     });
     if (error) throw error;
     setError('');
-    setMessage('We sent a new confirmation link to your email. Open it, then sign in.');
+    setMessage(`We sent a new confirmation link to ${trimmed}. Open that inbox, then sign in.`);
   }
 
   async function submit(e: React.FormEvent) {
@@ -79,6 +79,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
         if (error) {
           if (isEmailNotConfirmed(error)) {
             await resendConfirmation(s);
+            setMessage(`Account not confirmed yet. We sent a new confirmation link to ${email.trim()}. Open that inbox, then sign in.`);
             return;
           }
           throw error;
@@ -217,9 +218,19 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
         <div className="auth-links">
           {mode === 'login' ? (
             <>
-              <button type="button" className="auth-link-button" disabled={busy} onClick={() => void onResendConfirmation()}>
-                Resend confirmation email
+              <button
+                type="button"
+                className="auth-link-button"
+                disabled={busy}
+                onClick={() => void onResendConfirmation()}
+              >
+                {email.trim()
+                  ? `Resend confirmation to ${email.trim()}`
+                  : 'Resend confirmation email'}
               </button>
+              {!email.trim() && (
+                <p className="hint auth-resend-hint">Enter the email above first so we know who to resend to.</p>
+              )}
               <a href="/signup">Create an account</a>
               <a href="/forgot-password">Forgot password?</a>
             </>
