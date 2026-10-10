@@ -262,7 +262,7 @@ export default function Studio() {
     <>
       <Toaster richColors />
       <AppHeader signedIn={signedIn} admin={admin} page="studio" />
-      <WelcomeGuide signedIn={signedIn} />
+      <WelcomeGuide />
       <main className="workspace">
         <section className="intro">
           <div>

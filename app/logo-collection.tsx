@@ -213,7 +213,7 @@ export default function LogoCollection(){
   return <>
     <Toaster richColors/>
     <AppHeader signedIn={signedIn} admin={admin} page="collection"/>
-    <WelcomeGuide signedIn={signedIn}/>
+    <WelcomeGuide />
     <main className="admin-page">
       <div className="intro">
         <div>

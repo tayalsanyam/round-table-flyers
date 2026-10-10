@@ -59,7 +59,7 @@ export function defaultLogoLayout(id: string, index: number, total: number): Log
     id,
     x: 12 + col * (76 / Math.max(columns - 1, 1)),
     y: 78 - row * 12,
-    scale: 1,
+    scale: 2,
   };
 }
 

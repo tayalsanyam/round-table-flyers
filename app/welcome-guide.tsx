@@ -22,18 +22,17 @@ const STEPS = [
   { icon: Download, title: 'Download or share', text: 'Export a JPEG or send it straight to WhatsApp.' },
 ] as const;
 
-export default function WelcomeGuide({ signedIn }: { signedIn: boolean }) {
+export default function WelcomeGuide() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!signedIn) return;
     try {
       if (window.localStorage.getItem(STORAGE_KEY)) return;
     } catch {
       return;
     }
     setOpen(true);
-  }, [signedIn]);
+  }, []);
 
   function dismiss() {
     try {
