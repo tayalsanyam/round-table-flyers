@@ -33,17 +33,22 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
     }
   }, [mode]);
 
-  async function resendConfirmation(s = supabaseBrowser()) {
+  async function resendConfirmation(s = supabaseBrowser(), { knownUnconfirmed = false } = {}) {
     const trimmed = email.trim();
     if (!trimmed) throw new Error('Enter the email address to resend the confirmation link to.');
     const { error } = await s.auth.resend({
       type: 'signup',
       email: trimmed,
-      options: { emailRedirectTo: location.origin + '/auth/callback' },
+      options: { emailRedirectTo: `${location.origin}/auth/callback` },
     });
     if (error) throw error;
     setError('');
-    setMessage(`We sent a new confirmation link to ${trimmed}. Open that inbox, then sign in.`);
+    // Supabase returns success even when the account is missing or already confirmed (no email sent).
+    setMessage(
+      knownUnconfirmed
+        ? `Account not confirmed yet. We sent a new confirmation link to ${trimmed}. Check inbox and spam, then sign in.`
+        : `If an unconfirmed account exists for ${trimmed}, a confirmation link is on its way. Already confirmed? Sign in with your password.`,
+    );
   }
 
   async function submit(e: React.FormEvent) {
@@ -65,7 +70,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
           password,
           options: {
             data: { display_name: name.trim(), area: Number(area), rt: Number(rt) },
-            emailRedirectTo: location.origin + '/auth/callback',
+            emailRedirectTo: `${location.origin}/auth/callback`,
           },
         });
         if (error) throw error;
@@ -73,13 +78,12 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' | 'forgot'
           location.assign(safeNext(new URLSearchParams(location.search).get('next')));
           return;
         }
-        setMessage('Check your inbox to confirm your email, then sign in. If you already have an account, use the login page.');
+        setMessage('Check your inbox (and spam) to confirm your email, then sign in. If you already have an account, use the login page.');
       } else if (mode === 'login') {
         const { error } = await s.auth.signInWithPassword({ email, password });
         if (error) {
           if (isEmailNotConfirmed(error)) {
-            await resendConfirmation(s);
-            setMessage(`Account not confirmed yet. We sent a new confirmation link to ${email.trim()}. Open that inbox, then sign in.`);
+            await resendConfirmation(s, { knownUnconfirmed: true });
             return;
           }
           throw error;
