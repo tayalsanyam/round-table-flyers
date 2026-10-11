@@ -272,7 +272,7 @@ export default function GenerateStudio() {
           <section className="panel access-panel">
             <LockKeyhole size={30} />
             <h2>Sign up to generate flyer artwork</h2>
-            <p>This experimental tab uses your OpenAI key on the server. Create an account to try prompt writing and image generation.</p>
+            <p>Create an account to write prompts and generate beta flyer artwork. Generation runs on the site’s AI account, with a daily limit per member.</p>
             <a className="secondary" href="/login?next=/generate">Sign in</a>
             <a className="text-link" href="/signup?next=/generate">Create an account</a>
           </section>
